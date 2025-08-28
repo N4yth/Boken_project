@@ -1,12 +1,35 @@
-## Project Team
+## Main idea
 
-* **Nathan Dupuis**: Frontend & Backend
-* **Laura Aupetit**: Frontend & Backend
-
-## Target Audience
-
-This platform is designed for webtoon enthusiasts who want to track their reading progress across manhwa, manhua, and webtoons.
+A platform designed for webtoon enthusiasts who want to track their reading progress across manhwa, manhua, and webtoons.
 It will allow readers to easily see their progress, keep track of chapters read, and manage their personal reading lists.
+
+## Idea abort or approve
+
+### Database ideas
+
+| **Ideas** | **Strengths** | **Weaknesses** | **Decision** |
+| ----- | --------------------- | ------------------------ | ------------ |
+| Use External API | - No need to control data manually<br>- Fully automated | - Risk of illegal content (pirated translations)<br>- No official/legal API available | ❌ Aborted (no official/legal API exists for manhwa/webtoon/manhua) |
+| Create a database (row by row) | - Full control of stored data  | - Extremely time-consuming  | ❌ Aborted (too inefficient)|
+| Free & legal dataset   | - Full control of stored data<br>- Large sample available | - Risk of missing/incomplete data<br>- Time to structure & verify<br>- Hard to update | ✅ Approved (data is legal and easier to verify)|
+
+---
+
+### Content Type ideas
+
+| **Ideas** | **Strengths** | **Weaknesses** | **Decision** |
+| ----- | --------------------- | ------------------------ | ------------ |
+| Reading Webtoons | - Users can read directly on platform<br>- Potential revenue stream | - Requires agreements with authors<br>- Requires payment system | ⏳ Not in MVP, possible in future |
+
+---
+
+### User Types Ideas
+
+| **User Types Ideas** | **Strengths** | **Weaknesses** | **Decision** |
+| ----- | --------------------- | ------------------------ | ------------ |
+| Author | - Authors can add their own webtoons | - Requires identity verification| ⏳ Not in MVP, possible in future |
+| Translator | - Provides more language variety (with author approval) | - Must verify translator’s skills<br>- Must moderate content changes | ⏳ Not in MVP, possible in future |
+
 
 ## MVP (Minimum Viable Product)
 
@@ -55,22 +78,29 @@ To complete this project, we will explore new frameworks such as **Django** and 
 * Designing different user roles with distinct interfaces and permissions.
 * Ensuring that each user’s personal data is securely stored and displayed correctly.
 
-## Project Timeline
+## Project Team and Timeline
+
+### Team
+
+* **Nathan Dupuis**: Frontend & Backend
+* **Laura Aupetit**: Frontend & Backend
+
+### Timeline
 
 The project will span 3 months, divided into three phases:
 
 1. **Planning & Conceptualization (Month 1)**
 
-   * Define objectives, features, and user flows.
-   * Design the database schema and basic architecture.
+   * Define objectives, features, and the MVP.
 
 2. **Documentation & Initial Development (Month 2)**
 
    * Write technical documentation.
-   * Build the first version of the backend and frontend.
+   * Design the database schema and basic architecture.
+   * Build the foundations of the backend and frontend.
 
 3. **Full Development & Refinement (Month 3)**
 
-   * Implement all features.
+   * Implement all features of the MVP.
    * Improve the user interface and user experience.
    * Conduct testing and debugging before the final release.
