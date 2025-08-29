@@ -13,7 +13,6 @@ It will allow readers to easily see their progress, keep track of chapters read,
 | Create a database (row by row) | - Full control of stored data  | - Extremely time-consuming  | ❌ Aborted (too inefficient)|
 | Free & legal dataset   | - Full control of stored data<br>- Large sample available | - Risk of missing/incomplete data<br>- Time to structure & verify<br>- Hard to update | ✅ Approved (data is legal and easier to verify)|
 
----
 
 ### Content Type ideas
 
@@ -21,7 +20,6 @@ It will allow readers to easily see their progress, keep track of chapters read,
 | ----- | --------------------- | ------------------------ | ------------ |
 | Reading Webtoons | - Users can read directly on platform<br>- Potential revenue stream | - Requires agreements with authors<br>- Requires payment system | ⏳ Not in MVP, possible in future |
 
----
 
 ### User Types Ideas
 
@@ -84,6 +82,8 @@ To complete this project, we will explore new frameworks such as **Django** and 
 
 * **Nathan Dupuis**: Frontend & Backend
 * **Laura Aupetit**: Frontend & Backend
+
+We will use Discord and Slack as our main communication channels throughout the project.
 
 ### Timeline
 
