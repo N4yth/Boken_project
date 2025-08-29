@@ -19,6 +19,7 @@ It will allow readers to easily see their progress, keep track of chapters read,
 | **Ideas** | **Strengths** | **Weaknesses** | **Decision** |
 | ----- | --------------------- | ------------------------ | ------------ |
 | Reading Webtoons | - Users can read directly on platform<br>- Potential revenue stream | - Requires agreements with authors<br>- Requires payment system | ⏳ Not in MVP, possible in future |
+| Chat linked to Webtoon | - Enhances community engagement<br>- Keeps users up to date with the latest news about the Webtoon | - Requires moderation to prevent off-topic discussions or inappropriate language<br>- Risk of spoilers | ⏳ Not in MVP, possible in future |
 
 
 ### User Types Ideas
