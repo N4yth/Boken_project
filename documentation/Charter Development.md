@@ -65,6 +65,14 @@ The main objectives are:
 * Social features such as chat or discussion threads linked to each manhwa and manhua.
 
 ## 4. Project Risks
+| Risk                          | Probability | Impact | Solution                           |
+| ----------------------------- | ----------- | ------ | ---------------------------------- |
+| Lack of time                  | High        | High   | Reduction of the MVP scope         |
+| Route security                | Medium      | High   | Increase the number of tests       |
+| Post security (webtoon)       | Medium      | Low    | Admin verification of posts        |
+| Compatibility (PC and mobile) | High        | Medium | Focus on responsive development    |
+| User experience               | Medium      | Medium | Testing phase after MVP completion |
+
 
 ## 5. High-Level Plan
 ![gant diagram](./Boken%20Project.png?raw=true)
