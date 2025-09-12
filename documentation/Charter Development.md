@@ -1,4 +1,4 @@
-## 1. Specifique Objectif
+## 1. Specific Objectives
 
 The site will be designed for people who want to track their reading progress of manhwa and manhua, as well as discover new works.
 
@@ -37,10 +37,10 @@ The main objectives are:
   Also provides front-end support.
 
 * **Laura Aupetit**
-  Mainly responsible for front-end developmentand core design using Next.js, figma and Procreate.
+  Mainly responsible for front-end development and core design using Next.js, Figma and Procreate.
   Also provides back-end support.
 
-* **Marc** and **Pierre Dupuis**
+* **Marc Dupuis** and **Pierre Dupuis**
   Contribute to the understanding and execution of overall development.
 
 * **Chloé Vanengelandt**
@@ -75,4 +75,4 @@ The main objectives are:
 
 
 ## 5. High-Level Plan
-![gant diagram](./Boken%20Project.png?raw=true)
+![Gantt diagram](./Boken%20Project.png?raw=true)
