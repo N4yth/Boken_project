@@ -12,6 +12,41 @@ The main objectives are:
 
 ## 2. Stakeholders and Roles
 
+### Core Team
+
+| Name              | Role                         |
+| ----------------- | ---------------------------- |
+| **Nathan DUPUIS** | Team Leader · Developer      |
+| **Laura AUPETIT** | Developer · Graphic Designer |
+
+---
+
+### External Support
+
+| Name                   | Role             |
+| ---------------------- | ---------------- |
+| **Chloé VANENGELANDT** | Beta Tester      |
+| **Marc DUPUIS**        | Senior Developer |
+| **Pierre DUPUIS**      | Senior Developer |
+
+
+
+* **Nathan Dupuis**
+  Founder of the **Boken Paradise** project.
+  Mainly responsible for back-end development and database management using Django.
+  Also provides front-end support.
+
+* **Laura Aupetit**
+  Mainly responsible for front-end developmentand core design using Next.js, figma and Procreate.
+  Also provides back-end support.
+
+* **Marc** and **Pierre Dupuis**
+  Contribute to the understanding and execution of overall development.
+
+* **Chloé Vanengelandt**
+  Tests all site functionalities on both PC and mobile devices.
+
+
 ## 3. Project Scope
 
 ### In-Scope
