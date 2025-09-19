@@ -75,4 +75,5 @@ The main objectives are:
 
 
 ## 5. High-Level Plan
-![Gantt diagram](./Boken%20Project.png?raw=true)
+
+![gant diagram](./img/Boken%20Project.png?raw=true)
