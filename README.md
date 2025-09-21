@@ -59,28 +59,32 @@ represent the user that want to update his reading progress or/and the number of
 | **API Endpoint** | **URL Path** | **HTTP Method** | **Input Format** | **Output Format** |
 | ---------------- | ------------ | --------------- | ---------------- | ----------------- |
 | **User Authentication** | `/api/auth/login` | `POST` | JSON (email, password) | JSON (token) |
-| **User Creation** | `/api/user/` | `POST` | JSON (email, password, username) | JSON (msg) |
-| **User Retrieval** | `/api/user/{id}` | `GET` | Query param (id in path) | JSON (id, email, username, created_at) |
-| **User Update** | `/api/user/{id}` | `PUT` | JSON (email?, password?, username?) | JSON (msg) |
-| **User Deletion** | `/api/user/{id}` | `DELETE` | Query param (id in path) | JSON (msg) |
-| **Genre Creation** | `/api/genre/` | `POST` | JSON (name) | JSON (msg) |
-| **Genre Retrieval** | `/api/genre/{id}` | `GET` | Query param (id in path) | JSON (id, name) |
-| **Genre Update** | `/api/genre/{id}` | `PUT` | JSON (name) | JSON (msg) |
-| **Genre Deletion** | `/api/genre/{id}` | `DELETE` | Query param (id in path) | JSON (msg) |
-| **Webtoon Creation** | `/api/webtoon/` | `POST` | JSON (authors, release_date, title, status, rating, alt_title, description, language, totalChapters) | JSON (msg) |
-| **Webtoon Retrieval** | `/api/webtoon/{id}` | `GET` | Query param (id in path) | JSON (id, title, authors, description, etc.) |
-| **Webtoon Update** | `/api/webtoon/{id}` | `PUT` | JSON (authors?, release_date?, title?, status?, rating?, alt_title?, description?, language?, totalChapters?) | JSON (msg) |
-| **Webtoon Deletion** | `/api/webtoon/{id}` | `DELETE` | Query param (id in path) | JSON (msg) |
-| **Release Creation** | `/api/release/` | `POST` | JSON (webtoon_id, alt_title, description, language, totalChapters) | JSON (msg) |
-| **Release Retrieval** | `/api/release/{id}` | `GET` | Query param (id in path) | JSON (id, webtoon_id, alt_title, description, language, totalChapters) |
-| **Release Update** | `/api/release/{id}` | `PUT` | JSON (alt_title?, description?, language?, totalChapters?) | JSON (msg) |
-| **Release Deletion** | `/api/release/{id}` | `DELETE` | Query param (id in path) | JSON (msg) |
-| **Amdin Review** | `/api/admin_review` | `POST` | JSON(approval, msg_review) | JSON (msg) |
-| **Change Chapter** | `/api/webtoon/chapter` | `POST` | JSON(chapter, total_chapter) | JSON (msg) |
-| **Add Webtoon Library** | `/api/library/` | `POST` | JSON(Webtoon_id, user_id) | JSON (msg) |
-| **Webtoon Library Retrieval** | `/api/release/` | `GET` | nothing | JSON(alt_title, description, language, totalChapters) |
-| **Webtoon Library Deletion** | `/api/webtoon/{id}` | `DELETE` | JSON(chapter, total_chapter) | JSON (msg) |
-
+| **User Creation** | `/api/user/` | `POST` | JSON (email, password, username) | JSON (success, msg) |
+| **User Retrieval All** | `/api/user/` | `GET` | Nothing | JSON ({{id, email, username, created_at, updated_at}, ...}) |
+| **User Retrieval** | `/api/user/{user_id}` | `GET` | Path param (id in path) | JSON (id, email, username, created_at, updated_at) |
+| **User Update** | `/api/user/{user_id}` | `PUT` | JSON (email?, password?, username?) | JSON (success, msg) |
+| **User Deletion** | `/api/user/{user_id}` | `DELETE` | Path param (id in path) | JSON (success, msg) |
+| **Genre Creation** | `/api/genre/` | `POST` | JSON (name) | JSON (success, msg) |
+| **Genre Retrieval All** | `/api/genre/` | `GET` | Nothing | JSON ({{id, name}, ...}) |
+| **Genre Retrieval** | `/api/genre/{genre_id}` | `GET` | Path param (id in path) | JSON (id, name) |
+| **Genre Update** | `/api/genre/{genre_id}` | `PUT` | JSON (name) | JSON (success, msg) |
+| **Genre Deletion** | `/api/genre/{genre_id}` | `DELETE` | Path param (id in path) | JSON (success, msg) |
+| **Webtoon Creation** | `/api/webtoon/` | `POST` | JSON (authors, release_date, title, status, rating, alt_title, description, language, total_chapters) | JSON (success, msg) |
+| **Webtoon Retrieval All** | `/api/webtoon/` | `GET` | Nothing | JSON {{id, title, description, status, rating, updated_at, memo}, ...} |
+| **Webtoon Retrieval** | `/api/webtoon/{webtoon_id}` | `GET` | Path param (id in path) | JSON (id, authors, release_date, title, status, rating, alt_title, description, language, total_chapters, memo) |
+| **Webtoon Update** | `/api/webtoon/{webtoon_id}` | `PUT` | JSON (authors?, release_date?, title?, status?, rating?, alt_title?, description?, language?, total_chapters?) | JSON (success, msg) |
+| **Webtoon Deletion** | `/api/webtoon/{webtoon_id}` | `DELETE` | Path param (id in path) | JSON (success, msg) |
+| **Release Creation** | `/api/release/` | `POST` | JSON (webtoon_id, alt_title, description, language, total_chapters) | JSON (success, msg) |
+| **Release Retrieval All** | `/api/release/` | `GET` | Nothing | JSON ({{id, webtoon_id, alt_title, description, language, total_chapters}, ...}) |
+| **Release Retrieval** | `/api/release/{release_id}` | `GET` | Path param (id in path) | JSON (id, webtoon_id, alt_title, description, language, total_chapters) |
+| **Release Update** | `/api/release/{release_id}` | `PUT` | JSON (alt_title?, description?, language?, total_chapters?) | JSON (success, msg) |
+| **Release Deletion** | `/api/release/{release_id}` | `DELETE` | Path param (id in path) | JSON (success, msg) |
+| **Admin Review** | `/api/admin_review` | `POST` | JSON(approval, msg_review) | JSON (success, msg) |
+| **Change Chapter** | `/api/webtoon/{webtoon_id}/chapter` | `PUT` | JSON(chapter, total_chapter) | JSON (success, msg) |
+| **Add Webtoon Library** | `/api/library/` | `POST` | JSON(webtoon_id, user_id) | JSON (success, msg) |
+| **Webtoon Library Retrieval** | `/api/library/` | `GET` | Nothing | JSON({{id, title, description, status, rating, memo, updated_at}, ...}) |
+| **Webtoon Library Retrieval by User** | `/api/library/{user_id}` | `GET` | Path param (user_id in path) | JSON (id, authors, release_date, title, status, rating, alt_title, description, language, total_chapters, memo, updated_at) |
+| **Webtoon Library Removal** | `/api/library/{webtoon_id}` | `DELETE` | Path param (id in path) | JSON (success, msg) |
 
 
 ## 6. SCM and QA Plans
