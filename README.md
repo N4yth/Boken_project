@@ -13,6 +13,8 @@ This System Architecture Diagram represent an higher view of the architecture of
 
 ## 3. System structure and data model
 
+### class diagram
+
 the class diagram that represente the structure of our database<br/>
 here is a short description of each table :
 * BaseModel : the mother class of all class to implement important methode and variable like ID 
@@ -24,6 +26,36 @@ here is a short description of each table :
 * UserWebtoon : table that link User between Webtoon<br/><br/>
 
 <img src="./documentation/img/Class_Diagram_boken.png" alt="Class Diagrams DB" width="600" height="800"/><br/>
+
+### ERdiagram
+
+the ERdiagram represente the relation between element<br/>
+here is a short description of each element :
+* BaseModel : the mother class of all class to implement important methode and variable like ID 
+* Webtoon : class that represent data of Webtoon (title, release date, authors...)
+* Genre : class represent the different Genre that exist
+* User : user that is register with their personal information
+* WebtoonGenre : table that link genre between Webtoon
+* release : represent all traduction of a Webtoon and data that is link to (alt title, description, total chapter out... )
+* UserWebtoon : table that link User between Webtoon<br/><br/>
+
+<img src="./documentation/img/ERdiagram.png" alt="Class Diagrams DB" width="600" height="500"/><br/>
+
+### front-end_component_diagram
+
+the front-end component diagram represent how the different parts of a user interface (UI) are organized and how they interact with each other.<br/>
+here is a short description of each element :
+* Navbar Component : A navigation bar that lets the user move between pages.
+* Home Page : The first page where the user arrives.
+* Webtoon List : A list of webtoons ordered by last modification.
+* Webtoon Detail Page : A page where all the details of a webtoon are displayed.
+* Advanced Research Page : A page that lets the user search for a particular webtoon with adjustable parameters.
+* Matched Webtoon List : The list of all webtoons that match the user’s search parameters.
+* User Library Page : The user’s library containing all the webtoons they are currently reading.
+* Webtoon Favorites List : The list of all the user’s favorite webtoons.
+* Settings Page : The page where the user can configure the site’s settings.<br/><br/>
+
+<img src="./documentation/img/front-end_component_diagram.png" alt="Class Diagrams DB" width="600" height="400"/><br/>
 
 ## 4. Sequence Diagrams
 
