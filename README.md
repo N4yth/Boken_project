@@ -124,5 +124,22 @@ This table summarizes all available API endpoints, including their URL paths, HT
 
 ## 6. SCM and QA Plans
 
+### SCM plan
+
+* Version controling : In this project, we will use Git and GitHub .
+* branches organization : The branches will be  as main → dev → feature, where
+    * main : contains the final working product.
+    * dev : integrates all features.
+    * feature : contains individual features, such as the user page (frontend) or the webtoon endpoint (backend).
+* Control plan : For each push to the dev branch, we will conduct a meeting to review the code before it is pushed and determine where it should be merged.
+
+
+### QA plan
+
+* Define a testing strategy : Implement unit tests for backend logic, API endpoints, and frontend components; include integration tests for full user flows (e.g., user registration, webtoon creation, library updates).
+* Specify testing tools : Use Django’s built-in testing framework for backend, Jest/React Testing Library for frontend, and Postman for API endpoint verification.
+* Deployment pipeline : Set up a CI/CD pipeline with automated tests, staging environment for pre-production verification, and production deployment with rollback options.
+
+
 ## 7. Technical Justifications
 
