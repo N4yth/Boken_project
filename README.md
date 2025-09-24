@@ -143,3 +143,42 @@ This table summarizes all available API endpoints, including their URL paths, HT
 
 ## 7. Technical Justifications
 
+**Next.js (Front-end):**
+
+* React-based framework, fast and modern.
+
+* Allows us to improve SEO thanks to server-side rendering.
+
+* Simplifies the creation of interfaces and navigation between pages.
+
+**Django (Back-end):**
+
+* Robust and secure Python framework.
+
+* Allows us to integrate an ORM to work easily with the database.
+
+* The Django REST Framework module makes it easy to create APIs.
+
+**PostgreSQL (Database):**
+
+* Reliable, high-performance relational database.
+
+* Manages relationships between users, projects and tasks.
+
+* Also supports more complex data (JSON if required).
+
+**GitHub/Git (Control version):**
+
+* Standard tool for managing and sharing code.
+
+* Allows several people to work together without overwriting each other's work.
+
+* Pull requests and branches help keep code clean.
+
+**VSCode (IDE):**
+
+* Simple and popular editor.
+
+* Compatible with Python (Django) and JavaScript (Next.js).
+
+* Useful extensions for Git, PostgreSQL and debugging.
