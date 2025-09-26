@@ -2,12 +2,39 @@
 
 ## 1. User Stories and Mockups
 
+
+### User Stories
+
+1. Home Page
+   *As a user, I want to view the home page so that I can see all recently modified or new webtoons and search for webtoons by name.*
+
+2. Advanced Search Page
+   *As a user, I want to use the advanced search page so that I can find webtoons by genre, name, number of chapters, or status.*
+
+3. Settings Page
+   *As a user, I want to access the settings page so that I can configure my experience on the site according to my preferences.*
+
+4. Webtoon Details Page
+   *As a user, I want to view the details page of a webtoon so that I can see all the relevant information about it, including title, authors, description, and release data.*
+
+5. Library Page
+   *As a user, I want to access my library page so that I can see the webtoons I want to read or have already read.*
+
+6. Create Webtoon Page
+   *As a user, I want to access the page to create a new webtoon so that I can add all the important information about it for other users to see.*
+
+
+### Mockups
+
+
+
+
 ## 2. System Architecture
 
-This System Architecture Diagram represents a high-level view of the architecture of the site there are 3 elements:
-* Frontend : (with NEXTjs) is representing the user and admin interface.
-* Backend + API : (with Django) is representing the backend that receives HTTP requests and handles them by performing SQL queries to the Database.
-* Database : (with PostgreSQL) is representing the database that will stock all the user and webtoon data.<br/><br/>
+This System Architecture Diagram represents a high-level view of the site architecture. There are three main elements:
+* Frontend : (with Next.js) represents the user and admin interface.
+* Backend + API : (with Django) represents the backend that receives HTTP requests and handles them by performing SQL queries to the Database.
+* Database : (with PostgreSQL) represents the database that will stores all the user and webtoon data.<br/><br/>
 
 <img src="./documentation/img/System_Architecture_diagram.png" alt="System Architecture Diagrams" width="700" height="200"/><br/>
 
@@ -18,38 +45,38 @@ This System Architecture Diagram represents a high-level view of the architectur
 The class diagram that represents the structure of our database.<br/>
 Here is a short description of each table :
 * BaseModel : the parent class of all classes, implementing key methods and variables like ID.
-* Webtoon : class that represents data of Webtoon (title, release date, authors...).
-* Genre : class represent the different Genre that exist.
+* Webtoon : represents data of Webtoon (title, release date, authors...).
+* Genre : represents the different Genre that exist.
 * User : a registered user with personal information.
-* WebtoonGenre : table that link genre between Webtoon.
-* Release: represents all translations of a Webtoon and data that is link to (alt title, description, total chapter out... ).
-* UserWebtoon: table linking Users to Webtoons.<br/><br/>
+* WebtoonGenre : junction table linking Webtoons and Genres
+* Release: represents all translations of a Webtoon and data linked to (alt title, description, total chapter out... ).
+* UserWebtoon: junction table linking Users and Webtoons.<br/><br/>
 
 <img src="./documentation/img/Class_Diagram_boken.png" alt="Class Diagrams DB" width="600" height="800"/><br/>
 
-### ERdiagram
+### ER diagram
 
-The ERdiagram represents the relation between elements in the database.<br/>
+The ER diagram represents the relation between elements in the database.<br/>
 Here is a short description of each element :
 * BaseModel : the parent class of all classes, implementing key methods and variables like ID.
-* Webtoon : class that represents data of Webtoon (title, release date, authors...).
-* Genre : class represent the different Genre that exist.
+* Webtoon : represents data of Webtoon (title, release date, authors...).
+* Genre : represents the different Genre that exist.
 * User : a registered user with personal information.
-* WebtoonGenre : table that link genre between Webtoon.
-* Release: represents all translations of a Webtoon and data that is link to (alt title, description, total chapter out... ).
-* UserWebtoon : table that link User between Webtoon.<br/><br/>
+* WebtoonGenre : junction table linking Webtoons and Genres.
+* Release: represents all translations of a Webtoon and data linked to (alt title, description, total chapter out... ).
+* UserWebtoon : junction table linking Users and Webtoons.<br/><br/>
 
 <img src="./documentation/img/ERdiagram.png" alt="Class Diagrams DB" width="600" height="500"/><br/>
 
-### front-end_component_diagram
+### front-end component diagram
 
 the front-end component diagram represent how the different parts of a user interface (UI) are organized and how they interact with each other.<br/>
 here is a short description of each element :
-* Navbar Component : A navigation bar that lets the user move between pages.
+* Navbar Component : A navigation bar that allow the user move between pages.
 * Home Page : The first page where the user arrives.
 * Webtoon List : A list of webtoons ordered by last modification.
 * Webtoon Detail Page : A page where all the details of a webtoon are displayed.
-* Advanced Search Page : A page that lets the user search for a particular webtoon with adjustable parameters.
+* Advanced Search Page : A page that allow the user search for a particular webtoon with adjustable parameters.
 * Matched Webtoon List : The list of all webtoons that match the user’s search parameters.
 * User Library Page : The user’s library containing all the webtoons they are currently reading.
 * Webtoon Favorites List : The list of all the user’s favorite webtoons.
@@ -61,9 +88,9 @@ here is a short description of each element :
 
 These 3 Sequence Diagrams each represent a key interaction between : 
 * The Frontend (User Interface) : where the user will interact and send http request.
-* The API : get the http request and send to the business logic.
+* The API : receives the HTTP request and forwards it to the business logic.
 * The business logic : validates the data sent, and if correct, saves it in the database.
-* The database : database where all data is save.
+* The database : database where all data is saved.
 <br/>
 the key interaction is :
 
@@ -115,7 +142,7 @@ This table summarizes all available API endpoints, including their URL paths, HT
 | **Release Update** | `/api/release/{release_id}` | `PUT` | JSON (alt_title?, description?, language?, total_chapters?) | JSON (success, msg) |
 | **Release Deletion** | `/api/release/{release_id}` | `DELETE` | Path parameter: release_id | JSON (success, msg) |
 | **Admin Review** | `/api/admin_review` | `POST` | JSON(approval, msg_review) | JSON (success, msg) |
-| **Change Chapter** | `/api/webtoon/{webtoon_id}/chapter` | `PUT` | JSON(chapter, total_chapter) | JSON (success, msg) |
+| **Change Chapter** | `/api/webtoon/{webtoon_id}/chapter` | `PUT` | JSON(chapter, total_chapters) | JSON (success, msg) |
 | **Add Webtoon Library** | `/api/library/` | `POST` | JSON(webtoon_id, user_id) | JSON (success, msg) |
 | **Webtoon Library Retrieval** | `/api/library/` | `GET` | Nothing | JSON({{id, title, description, status, rating, memo, updated_at}, ...}) |
 | **Webtoon Library Retrieval by User** | `/api/library/{user_id}` | `GET` | Path param (user_id in path) | JSON (id, authors, release_date, title, status, rating, alt_title, description, language, total_chapters, memo, updated_at) |
@@ -126,12 +153,12 @@ This table summarizes all available API endpoints, including their URL paths, HT
 
 ### SCM plan
 
-* Version controling : In this project, we will use Git and GitHub .
+* Version control : In this project, we will use Git and GitHub .
 * branches organization : The branches will be  as main → dev → feature, where
     * main : contains the final working product.
     * dev : integrates all features.
     * feature : contains individual features, such as the user page (frontend) or the webtoon endpoint (backend).
-* Control plan : For each push to the dev branch, we will conduct a meeting to review the code before it is pushed and determine where it should be merged.
+* Control plan: For each push to the dev branch, a code review meeting will be conducted to decide where it should be merged.
 
 
 ### QA plan
@@ -155,7 +182,7 @@ This table summarizes all available API endpoints, including their URL paths, HT
 
 * Robust and secure Python framework.
 
-* Allows us to integrate an ORM to work easily with the database.
+* Includes a powerful ORM to interact easily with the database.
 
 * The Django REST Framework module makes it easy to create APIs.
 
