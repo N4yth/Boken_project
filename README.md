@@ -52,7 +52,7 @@ Here is a short description of each table :
 * Release: represents all translations of a Webtoon and data linked to (alt title, description, total chapter out... ).
 * UserWebtoon: junction table linking Users and Webtoons.<br/><br/>
 
-<img src="./documentation/img/Class_Diagram_boken.png" alt="Class Diagrams DB" width="600" height="800"/><br/>
+<img src="./documentation/img/Class_Diagram_boken.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 ### ER diagram
 
@@ -66,7 +66,7 @@ Here is a short description of each element :
 * Release: represents all translations of a Webtoon and data linked to (alt title, description, total chapter out... ).
 * UserWebtoon : junction table linking Users and Webtoons.<br/><br/>
 
-<img src="./documentation/img/ERdiagram.png" alt="Class Diagrams DB" width="600" height="500"/><br/>
+<img src="./documentation/img/ERdiagram.png" alt="Class Diagrams DB" width="850" height="750"/><br/>
 
 ### front-end component diagram
 
@@ -80,9 +80,10 @@ here is a short description of each element :
 * Matched Webtoon List : The list of all webtoons that match the user’s search parameters.
 * User Library Page : The user’s library containing all the webtoons they are currently reading.
 * Webtoon Favorites List : The list of all the user’s favorite webtoons.
-* Settings Page : The page where the user can configure the site’s settings.<br/><br/>
+* Settings Page : The page where the user can configure the site’s settings.
+* Validation Page : The page where the admin can approve or reject a user’s request to publish webtoon data.<br/><br/>
 
-<img src="./documentation/img/front-end_component_diagram.png" alt="Class Diagrams DB" width="600" height="400"/><br/>
+<img src="./documentation/img/front-end_component_diagram.png" alt="Class Diagrams DB" width="1000" height="500"/><br/>
 
 ## 4. Sequence Diagrams
 
@@ -97,20 +98,48 @@ the key interaction is :
 ### User creation
 Represents a visitor creating an account.<br/><br/>
 
+1. The frontend sends the user creation request.
+2. The API receives it and validates the data.
+3. The data is saved in the database.
+4. A response is sent back to the business logic.
+5. The response is returned to the API.
+6. The response is displayed on the frontend.
+7. If the email already exists, an error is generated.
+8. The error message is displayed on the frontend.<br/>
 
-<img src="./documentation/img/Sequence_diagram_User_creation.PNG" alt="Sequence Diagrams for User creation" width="900" height="450"/><br/>
+<img src="./documentation/img/Sequence_diagram_User_creation.png" alt="Sequence Diagrams for User creation" width="900" height="450"/><br/>
 
 ### Webtoon creation
 Represents a user creating a webtoon.<br/><br/>
 
+1. The frontend sends the Webtoon creation request.
+2. The API receives it and validates the data.
+3. The data is saved in the database.
+4. A response is sent back to the business logic.
+5. The response is returned to the API.
+6. The response is displayed on the frontend.
+7. If the title already exists, an error is generated.
+8. The error message is displayed on the frontend.
+9. If some data is missing, an error is generated.
+10. The error message is displayed on the frontend.<br/>
 
-<img src="./documentation/img/Sequence_diagram_Webtoon_creation.PNG" alt="Sequence Diagrams for Webtoon creation" width="900" height="450"/><br/>
+<img src="./documentation/img/Sequence_diagram_Webtoon_creation.png" alt="Sequence Diagrams for Webtoon creation" width="900" height="450"/><br/>
 
 ### Chatper update
 Represents a user updating their reading progress and/or the number of chapters released.<br/><br/>
 
+1. The frontend sends the chapter modification request.
+2. The API receives it and validates the data.
+3. The data is saved in the database.
+4. A response is sent back to the business logic.
+5. The response is returned to the API.
+6. The response is displayed on the frontend.
+7. If the Webtoon alris not found, an error is generated.
+8. The error message is displayed on the frontend.
+9. If the data is invalid (chapter read higher than chapter out), an error is generated.
+10. The error message is displayed on the frontend.<br/>
 
-<img src="./documentation/img/Sequence_diagram_chapter_update.PNG" alt="Sequence Diagrams for chapter update" width="900" height="450"/><br/>
+<img src="./documentation/img/Sequence_diagram_chapter_update.png" alt="Sequence Diagrams for chapter update" width="900" height="450"/><br/>
 
 
 ## 5. API Specifications
