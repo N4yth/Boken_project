@@ -6,22 +6,22 @@
 ### User Stories
 
 1. Home Page
-   *As a user, I want to view the home page so that I can see all recently modified or new webtoons and search for webtoons by name.*
+<img src="./documentation/img/1.Home_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 2. Advanced Search Page
-   *As a user, I want to use the advanced search page so that I can find webtoons by genre, name, number of chapters, or status.*
+<img src="./documentation/img/2.Advanced_Search_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 3. Settings Page
-   *As a user, I want to access the settings page so that I can configure my experience on the site according to my preferences.*
+<img src="./documentation/img/3.Settings_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 4. Webtoon Details Page
-   *As a user, I want to view the details page of a webtoon so that I can see all the relevant information about it, including title, authors, description, and release data.*
+<img src="./documentation/img/4.Webtoon_Details_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 5. Library Page
-   *As a user, I want to access my library page so that I can see the webtoons I want to read or have already read.*
+<img src="./documentation/img/5.Library_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 6. Create Webtoon Page
-   *As a user, I want to access the page to create a new webtoon so that I can add all the important information about it for other users to see.*
+<img src="./documentation/img/6.Create_Webtoon_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 
 ### Mockups
