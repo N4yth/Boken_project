@@ -2,9 +2,6 @@
 
 ## 1. User Stories and Mockups
 
-
-### User Stories & Mockups
-
 <img src="./documentation/img/1.Home_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 <img src="./documentation/img/2.Advanced_Search_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
@@ -16,12 +13,6 @@
 <img src="./documentation/img/5.Library_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 <img src="./documentation/img/6.Create_Webtoon_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
-
-
-### Mockups
-
-
-
 
 ## 2. System Architecture
 
