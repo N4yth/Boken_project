@@ -3,24 +3,18 @@
 ## 1. User Stories and Mockups
 
 
-### User Stories
+### User Stories & Mockups
 
-1. Home Page
 <img src="./documentation/img/1.Home_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
-2. Advanced Search Page
 <img src="./documentation/img/2.Advanced_Search_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
-3. Settings Page
 <img src="./documentation/img/3.Settings_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
-4. Webtoon Details Page
 <img src="./documentation/img/4.Webtoon_Details_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
-5. Library Page
 <img src="./documentation/img/5.Library_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
-6. Create Webtoon Page
 <img src="./documentation/img/6.Create_Webtoon_Page.png" alt="Class Diagrams DB" width="700" height="900"/><br/>
 
 
