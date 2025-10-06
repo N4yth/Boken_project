@@ -6,9 +6,11 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from api.views.user import UserViewSet
+from api.views.webtoon import WebtoonViewSet
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
+router.register(r'webtoons', WebtoonViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
