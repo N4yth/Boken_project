@@ -22,22 +22,6 @@ class UserViewSet(viewsets.ModelViewSet):
             return [IsAdminUser()]
         return [IsAuthenticated()]
 
-    # === Création simple user ===
-    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
-    def register(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                user = User.objects.create_user(
-                    email=serializer.validated_data["email"],
-                    username=serializer.validated_data["username"],
-                    password=request.data.get("password")
-                )
-                return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
     # === Création admin ===
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def create_admin(self, request):
