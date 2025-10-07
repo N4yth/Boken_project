@@ -5,11 +5,6 @@ from .base_model import BaseModel
 
 class UserManager(BaseUserManager):
     def create_user(self, email, username, password=None):
-        if not email:
-            raise ValueError("L'adresse email est obligatoire")
-        if not username:
-            raise ValueError("Le nom d'utilisateur est obligatoire")
-
         email = self.normalize_email(email)
         user = self.model(email=email, username=username, role="user")
         user.set_password(password)
@@ -17,11 +12,6 @@ class UserManager(BaseUserManager):
         return user
 
     def create_admin(self, email, username, password, created_by=None):
-        if not email:
-            raise ValueError("L'adresse email est obligatoire")
-        if not username:
-            raise ValueError("Le nom d'utilisateur est obligatoire")
-
         admin_count = self.model.objects.filter(role="admin").count()
 
         if admin_count > 0:
@@ -53,19 +43,3 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
-
-    # === GETTERS ===
-    def get_full_name(self):
-        return self.username
-
-    def get_short_name(self):
-        return self.username
-
-    def get_role(self):
-        return self.role
-
-    # === SETTERS ===
-    def set_role(self, role: str):
-        if role not in dict(self.ROLE_CHOICES):
-            raise ValueError("Role invalide")
-        self.role = role
