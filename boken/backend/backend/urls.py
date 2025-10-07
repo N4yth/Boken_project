@@ -7,10 +7,12 @@ from rest_framework_simplejwt.views import (
 )
 from api.views.user import UserViewSet
 from api.views.webtoon import WebtoonViewSet
+from api.views.genre import GenreViewSet
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'webtoons', WebtoonViewSet)
+router.register(r'genres', GenreViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
