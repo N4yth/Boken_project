@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models.user import User
 from .models.webtoon import Webtoon
+from .models.genre import Genre
+
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
@@ -22,3 +24,9 @@ class WebtoonSerializer(serializers.ModelSerializer):
         model = Webtoon
         fields = ['id', 'title', 'authors', 'status', 'is_public', 'rating', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
         read_only_fields = ['id', 'is_public', 'add_by', 'created_at', 'release_date', 'update_at'] 
+
+class GenreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Genre
+        fields = ['id', 'name', 'create_at', 'update_at']
+        read_only_fields = ['id', 'created_at', 'update_at'] 
