@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models.user import User
 from .models.webtoon import Webtoon
 from .models.genre import Genre
+from .models.release import Release
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -23,10 +24,16 @@ class WebtoonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Webtoon
         fields = ['id', 'title', 'authors', 'status', 'is_public', 'rating', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
-        read_only_fields = ['id', 'is_public', 'add_by', 'created_at', 'release_date', 'update_at'] 
+        read_only_fields = ['id', 'is_public', 'add_by', 'create_at', 'release_date', 'update_at'] 
 
 class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
         fields = ['id', 'name', 'create_at', 'update_at']
-        read_only_fields = ['id', 'created_at', 'update_at'] 
+        read_only_fields = ['id', 'create_at', 'update_at']
+
+class ReleaseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Release
+        fields = ['id', 'alt_title', 'description', 'language', 'total_chapter', 'webtoon_id','create_at', 'update_at']
+        read_only_fields = ['id', 'create_at', 'update_at'] 
