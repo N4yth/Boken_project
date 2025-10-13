@@ -9,12 +9,14 @@ from api.views.user import UserViewSet
 from api.views.webtoon import WebtoonViewSet
 from api.views.genre import GenreViewSet
 from api.views.release import ReleaseViewSet
+from api.views.user_release import UserReleaseViewSet
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'webtoons', WebtoonViewSet)
 router.register(r'genres', GenreViewSet)
 router.register(r'releases', ReleaseViewSet)
+router.register(r'usereleases', UserReleaseViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
