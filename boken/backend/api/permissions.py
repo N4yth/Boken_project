@@ -29,3 +29,16 @@ class IsWebtoonCreatorOrAdmin(BasePermission):
                 return True
             return False
         return False
+
+class IsReaderOrAdmin(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if hasattr(request.user, "role") and request.user.role == "admin":
+            return True
+        return obj.user_id.id == request.user.id
+    
+class DataAuthorization(BasePermission):
+    def has_permission(self, request, view):
+        if request.data.get("user_id") or request.data.get("release_id"):
+            if not request.user.is_staff or getattr(request.user, "role", None) != "admin":
+                return False
+        return True
