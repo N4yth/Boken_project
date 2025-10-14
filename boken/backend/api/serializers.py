@@ -19,19 +19,31 @@ class UserSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data, password=password)
         return user
 
-class WebtoonSerializer(serializers.ModelSerializer):
-    add_by = UserSerializer(read_only=True)
-
-    class Meta:
-        model = Webtoon
-        fields = ['id', 'title', 'authors', 'status', 'is_public', 'rating', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
-        read_only_fields = ['id', 'is_public', 'add_by', 'create_at', 'release_date', 'update_at'] 
-
 class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
         fields = ['id', 'name', 'create_at', 'update_at']
         read_only_fields = ['id', 'create_at', 'update_at']
+
+
+class WebtoonSerializer(serializers.ModelSerializer):
+    add_by = UserSerializer(read_only=True)
+    genres = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Genre.objects.all(),
+        required=False
+    )
+
+    class Meta:
+        model = Webtoon
+        fields = ['id', 'genres', 'title', 'authors', 'status', 'is_public', 'rating', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
+        read_only_fields = ['id', 'is_public', 'add_by', 'create_at', 'release_date', 'update_at'] 
+    
+    def to_representation(self, instance):
+        """Remplace la liste d’IDs des genres par leurs données complètes"""
+        rep = super().to_representation(instance)
+        rep["genres"] = GenreSerializer(instance.genres.all(), many=True).data
+        return rep
 
 class ReleaseSerializer(serializers.ModelSerializer):
     class Meta:
