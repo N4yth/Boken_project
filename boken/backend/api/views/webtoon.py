@@ -11,7 +11,13 @@ from api.serializers import WebtoonSerializer
 class WebtoonViewSet(viewsets.ModelViewSet):
     queryset = Webtoon.objects.all()
     serializer_class = WebtoonSerializer 
-    permission_classes = [JWTAuthentication]
+    permission_classes = [AllowAny, IsAuthenticated, IsCreatorOrAdmin, IsAdminUser]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated and (user.is_staff or getattr(user, "role", None) == "admin"):
+            return Webtoon.objects.all()
+        return Webtoon.objects.filter(is_public=True)
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
