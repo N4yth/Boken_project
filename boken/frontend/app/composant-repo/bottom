@@ -1,0 +1,29 @@
+<button
+  key={vitrine}
+  className="rounded-2xl p-6 flex flex-col items-center justify-center shadow-md hover:shadow-xl transition transform hover:-translate-y-1 backdrop-blur-lg"
+  style={{
+    background: `linear-gradient(145deg, ${accent}15, ${accent}30)`,
+    border: `1px solid ${accent}40`,
+    animation: "var(--animate-pulse)", // 👈 ici
+  }}
+>
+  <div
+    className="font-semibold mb-2 text-lg"
+    style={{ color: accent }}
+  >
+    Vitrine {vitrine}
+  </div>
+  <p className="text-gray-700 text-sm text-center">
+    Une belle vitrine dynamique.
+  </p>
+</button>
+<style jsx>{`
+  @keyframes pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+  .pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+`}</style>
