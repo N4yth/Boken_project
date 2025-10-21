@@ -1,9 +1,105 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import axios from "axios";
 import Image from "next/image";
 
+interface Webtoon {
+  id: number;
+  title: string;
+  description: string;
+}
+
 export default function Home() {
+  const [webtoons, setWebtoons] = useState<Webtoon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+
+  // Credentials à envoyer (tu peux remplacer par un formulaire si tu veux)
+  const credentials = {
+    email: "a@a.com",
+    password: "1234",
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function authenticateAndFetch() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        // 1) Authentification -> obtenir token
+        const loginResp = await axios.post(
+          "http://127.0.0.1:8000/login/",
+          credentials,
+          { headers: { "Content-Type": "application/json" } }
+        );
+
+        // 2) Récupération du token selon différents formats possibles
+        const data = loginResp.data || {};
+        const foundToken =
+          data.access ||
+          (typeof data === "string" ? data : null);
+        if (!foundToken) {
+          console.error("Login response (no token):", data);
+          throw new Error(
+            "No token found in login response. Check login endpoint response format."
+          );
+        }
+
+        // sauvegarde du token en état (et potentiellement localStorage si souhaité)
+        if (!isMounted) return;
+        setToken(foundToken);
+
+        // 3) Requête protégée aux webtoons en utilisant Authorization Bearer
+        const webtoonsResp = await axios.get(
+          "http://127.0.0.1:8000/api/webtoons/",
+          { headers: { Authorization: `Bearer ${foundToken}` } }
+        );
+
+        if (!isMounted) return;
+
+        // 4) Gérer plusieurs formats de réponse (array ou { results: [...] })
+        const payload = webtoonsResp.data;
+        if (Array.isArray(payload)) {
+          setWebtoons(payload);
+        } else if (payload && Array.isArray(payload.results)) {
+          setWebtoons(payload.results);
+        } else {
+          // si la structure n'est pas attendue, afficher pour debug
+          console.warn("Unexpected webtoons payload:", payload);
+          setWebtoons([]);
+          setError("Unexpected /api/webtoons/ response format (see console).");
+        }
+      } catch (err: any) {
+        console.error("Auth / fetch error:", err);
+        // message d'erreur utile
+        if (err.response && err.response.data) {
+          setError(
+            `Request failed: ${err.response.status} - ${JSON.stringify(
+              err.response.data
+            )}`
+          );
+        } else {
+          setError(err.message || "Unknown error");
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    authenticateAndFetch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start w-full max-w-3xl">
         <Image
           className="dark:invert"
           src="/next.svg"
@@ -12,90 +108,46 @@ export default function Home() {
           height={38}
           priority
         />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+        <h1 className="text-2xl font-bold mt-6 mb-2">Liste des Webtoons</h1>
+
+        {loading && <p>Chargement...</p>}
+        {error && <p className="text-red-500 whitespace-pre-wrap">{error}</p>}
+
+        {!loading && !error && webtoons.length === 0 && (
+          <p>Aucun webtoon trouvé.</p>
+        )}
+
+        {!loading && webtoons.length > 0 && (
+          <ul className="w-full space-y-3">
+            {webtoons.map((w) => (
+              <li
+                key={w.id}
+                className="p-4 border rounded-2xl shadow-sm hover:bg-gray-50 transition"
+              >
+                <strong className="block text-lg font-semibold">{w.title}</strong>
+                <p className="text-gray-600">{w.description}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Affiche token pour debug (retire en production) */}
+        {token && (
+          <div className="mt-4 text-xs text-gray-400 break-all w-full">
+            <strong>Token (debug):</strong> {token}
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
+
+      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center text-sm text-gray-500">
         <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          href="https://nextjs.org"
           target="_blank"
           rel="noopener noreferrer"
+          className="hover:underline"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
+          Powered by Next.js + Django REST
         </a>
       </footer>
     </div>
