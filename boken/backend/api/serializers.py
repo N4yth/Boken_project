@@ -37,7 +37,7 @@ class WebtoonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Webtoon
         fields = ['id', 'genres', 'title', 'authors', 'status', 'is_public', 'rating', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
-        read_only_fields = ['id', 'is_public', 'add_by', 'create_at', 'release_date', 'update_at'] 
+        read_only_fields = ['id', 'add_by', 'create_at', 'release_date', 'update_at'] 
     
     def to_representation(self, instance):
         """Remplace la liste d’IDs des genres par leurs données complètes"""
