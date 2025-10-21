@@ -6,18 +6,13 @@ from rest_framework.decorators import action
 from api.permissions import IsCreatorOrAdmin
 from api.models.webtoon import Webtoon
 from api.serializers import WebtoonSerializer
+from django.db.models import Q
 
 
 class WebtoonViewSet(viewsets.ModelViewSet):
     queryset = Webtoon.objects.all()
     serializer_class = WebtoonSerializer 
-    permission_classes = [AllowAny, IsAuthenticated, IsCreatorOrAdmin, IsAdminUser]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated and (user.is_staff or getattr(user, "role", None) == "admin"):
-            return Webtoon.objects.all()
-        return Webtoon.objects.filter(is_public=True)
+    permission_classes = [JWTAuthentication]
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
@@ -29,9 +24,11 @@ class WebtoonViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
+        if "is_public" in self.request.data and (self.request.user.is_staff or getattr(self.request.user, "role", None) != "admin"):
+            return Response({'error': "Vous n avez pas la permission d'executer cette action (is public: true)."}, status=status.HTTP_403_FORBIDDEN)
         serializer.save(add_by=self.request.user)
 
-    @action(detail=True, methods=['patch'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['patch'])
     def set_to_public(self, request, pk=None):
         try:
             webtoon = self.get_object()
@@ -48,3 +45,29 @@ class WebtoonViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(webtoon)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        user = request.user
+        if user.is_authenticated and (user.is_staff or getattr(user, "role", None) == "admin"):
+            queryset = queryset
+        elif user.is_authenticated:
+            queryset = queryset.filter(Q(is_public=True) | Q(add_by=user))
+        else:
+            queryset = queryset.filter(is_public=True)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+    def retrieve(self, request, *args, **kwargs):
+        user = request.user
+        instance = self.get_object()
+        if user.is_authenticated and (user.is_staff or getattr(user, "role", None) == "admin"):
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        if instance.is_public:
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        if instance.add_by and instance.add_by.id == user.id:
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({"detail": "Not allowed"}, status=status.HTTP_404_NOT_FOUND)
