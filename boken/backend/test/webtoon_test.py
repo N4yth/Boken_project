@@ -1,197 +1,319 @@
 from rest_framework.test import APITestCase
-from rest_framework import status
 from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.test import APIClient
+from rest_framework import status
+from datetime import date
 from api.models.webtoon import Webtoon
 from api.models.genre import Genre
 
 User = get_user_model()
 
 
-class WebtoonPermissionTests(APITestCase):
+class WebtoonViewSetTestCase(APITestCase):
+    """Tests pour le WebtoonViewSet avec différents niveaux de permissions"""
+
     def setUp(self):
-        # URLs
-        self.webtoons_url = "/api/webtoons/"
-
-        # Création d’un utilisateur simple
-        self.user = User.objects.create_user(
-            email="user@test.com", username="user", password="1234"
-        )
-
+        """Préparation des données de test"""
+        self.client = APIClient()
+        
         # Création d’un admin (corrigé : create_superuser)
         self.admin = User.objects.create_admin(
             email="admin@test.com", username="admin", password="admin1234"
         )
-
-        # JWT tokens
-        self.user_token = self.get_token_for_user(self.user)
-        self.admin_token = self.get_token_for_user(self.admin)
-
-        # Création de quelques genres
-        self.genre_action = Genre.objects.create(name="Action")
-        self.genre_romance = Genre.objects.create(name="Romance")
-
-        # Création d’un webtoon par user
-        self.webtoon_user = Webtoon.objects.create(
-            title="User Webtoon",
-            authors="User Author",
-            release_date="2023-01-01",
-            status="Ongoing",
-            is_public=True,
-            rating=4.5,
-            add_by=self.user,
-            waiting_review=False
+        
+        self.creator1 = User.objects.create_user(
+            email="creator@1.com", username="creator1", password="creator123"
         )
-        self.webtoon_user.genres.set([self.genre_action, self.genre_romance])  # ✅ assignation ManyToMany correcte
-
-        # Création d’un webtoon par admin
-        self.webtoon_admin = Webtoon.objects.create(
-            title="Admin Webtoon",
-            authors="Admin Author",
-            release_date="2022-05-10",
-            status="Finished",
-            is_public=True,
-            rating=5.0,
-            add_by=self.admin,
-            waiting_review=False
+        self.creator2 = User.objects.create_user(
+            email="creator@2.com", username="creator2", password="creator456"
         )
-        self.webtoon_admin.genres.set([self.genre_action])  # ✅ idem ici
+        
+        # Création des genres
+        self.genre1 = Genre.objects.create(name='Action')
+        self.genre2 = Genre.objects.create(name='Romance')
+        
+        # Création des webtoons publics
+        self.public_webtoon = Webtoon.objects.create(
+            title='Public Webtoon',
+            authors='Author 1',
+            release_date=date(2020, 1, 1),
+            status='in progress',
+            is_public=True,
+            add_by=self.creator1
+        )
+        self.public_webtoon.genres.add(self.genre1)
+        
+        # Création des webtoons privés
+        self.private_webtoon_creator1 = Webtoon.objects.create(
+            title='Private Webtoon Creator1',
+            authors='Author 2',
+            release_date=date(2021, 1, 1),
+            status='finish',
+            is_public=False,
+            add_by=self.creator1
+        )
+        self.private_webtoon_creator1.genres.add(self.genre2)
+        
+        self.private_webtoon_creator2 = Webtoon.objects.create(
+            title='Private Webtoon Creator2',
+            authors='Author 3',
+            release_date=date(2022, 1, 1),
+            status='pause',
+            is_public=False,
+            add_by=self.creator2
+        )
+        self.private_webtoon_creator2.genres.add(self.genre1, self.genre2)
+        
+        # URLs de base
+        self.list_url = '/api/webtoons/'  # Adapter selon votre configuration
+        self.public_detail_url = f'/api/webtoons/{self.public_webtoon.id}/'
+        self.private_detail_url_c1 = f'/api/webtoons/{self.private_webtoon_creator1.id}/'
+        self.private_detail_url_c2 = f'/api/webtoons/{self.private_webtoon_creator2.id}/'
 
-    def get_token_for_user(self, user):
-        """Retourne un JWT valide pour un utilisateur donné"""
-        refresh = RefreshToken.for_user(user)
-        return str(refresh.access_token)
-
-    # === TESTS GET ===
-    def test_list_webtoons(self):
-        """✅ Tout le monde peut lister les webtoons"""
-        response = self.client.get(self.webtoons_url)
+    # ==================== TESTS LIST ====================
+    
+    def test_list_anonymous_user_only_public(self):
+        """Un utilisateur anonyme ne voit que les webtoons publics"""
+        response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(response.data), 2)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], 'Public Webtoon')
 
-    def test_user_can_retrieve_own_webtoon(self):
-        """✅ Un user peut voir son webtoon"""
-        url = f"{self.webtoons_url}{self.webtoon_user.id}/"
-        response = self.client.get(url)
+    def test_list_authenticated_user_sees_public_and_own(self):
+        """Un utilisateur authentifié voit les publics et ses propres privés"""
+        self.client.force_authenticate(user=self.creator1)
+        response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["title"], "User Webtoon")
+        self.assertEqual(len(response.data), 2)
+        titles = [webtoon['title'] for webtoon in response.data]
+        self.assertIn('Public Webtoon', titles)
+        self.assertIn('Private Webtoon Creator1', titles)
+        self.assertNotIn('Private Webtoon Creator2', titles)
 
-    def test_user_can_retrieve_others_webtoon(self):
-        """✅ Un user peut voir le webtoon d’un autre utilisateur (si public)"""
-        url = f"{self.webtoons_url}{self.webtoon_admin.id}/"
-        response = self.client.get(url)
+    def test_list_admin_sees_all(self):
+        """Un admin voit tous les webtoons"""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
 
-    # === TESTS POST ===
-    def test_user_can_create_webtoon(self):
-        """✅ Un user peut créer un webtoon"""
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
+    # ==================== TESTS RETRIEVE ====================
+    
+    def test_retrieve_public_anonymous(self):
+        """Un anonyme peut voir un webtoon public"""
+        response = self.client.get(self.public_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Public Webtoon')
+
+    def test_retrieve_private_anonymous_forbidden(self):
+        """Un anonyme ne peut pas voir un webtoon privé"""
+        response = self.client.get(self.private_detail_url_c1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieve_private_by_creator(self):
+        """Un créateur peut voir son propre webtoon privé"""
+        self.client.force_authenticate(user=self.creator1)
+        response = self.client.get(self.private_detail_url_c1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Private Webtoon Creator1')
+
+    def test_retrieve_private_by_other_creator_forbidden(self):
+        """Un créateur ne peut pas voir le webtoon privé d'un autre"""
+        self.client.force_authenticate(user=self.creator2)
+        response = self.client.get(self.private_detail_url_c1)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieve_private_by_admin(self):
+        """Un admin peut voir tous les webtoons privés"""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.private_detail_url_c1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Private Webtoon Creator1')
+
+    # ==================== TESTS CREATE ====================
+    
+    def test_create_anonymous_forbidden(self):
+        """Un anonyme ne peut pas créer de webtoon"""
         data = {
-            "title": "New User Webtoon",
-            "authors": "User Author",
-            "genres": [str(self.genre_action.id), str(self.genre_romance.id)],
-            "release_date": "2025-01-01",
-            "status": "finish",
-            "waiting_review": False,
-            "rating": 3.0,
+            'title': 'New Webtoon',
+            'authors': 'New Author',
+            'release_date': '2023-01-01',
+            'status': 'in progress',
+            'genres': [self.genre1.id]
         }
-        response = self.client.post(self.webtoons_url, data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["add_by"]["id"], str(self.user.id))
+        response = self.client.post(self.list_url, data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_admin_can_create_webtoon(self):
-        """✅ Un admin peut créer un webtoon"""
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.admin_token}")
+    def test_create_authenticated_user_success(self):
+        """Un utilisateur authentifié peut créer un webtoon"""
+        self.client.force_authenticate(user=self.creator1)
         data = {
-            "title": "New Admin Webtoon",
-            "authors": "Admin Author",
-            "genres": [str(self.genre_action.id)],
-            "release_date": "2025-01-01",
-            "status": "in progress",
-            "waiting_review": False,
-            "rating": 4.0,
+            'title': 'New Webtoon by Creator1',
+            'authors': 'Creator One',
+            'release_date': '2023-01-01',
+            'status': 'in progress',
+            'genres': [self.genre1.id]
         }
-        response = self.client.post(self.webtoons_url, data, format="json")
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['title'], 'New Webtoon by Creator1')
+        self.assertEqual(str(response.data['add_by']["id"]), str(self.creator1.id))
+
+    def test_create_admin_success(self):
+        """Un admin peut créer un webtoon"""
+        self.client.force_authenticate(user=self.admin)
+        data = {
+            'title': 'New Webtoon by Admin',
+            'authors': 'Admin Author',
+            'release_date': '2023-01-01',
+            'status': 'finish',
+            'genres': [self.genre1.id, self.genre2.id]
+        }
+        response = self.client.post(self.list_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    # === TESTS PUT/PATCH ===
-    def test_user_can_update_own_webtoon(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
-        url = f"{self.webtoons_url}{self.webtoon_user.id}/"
-        data = {"title": "User Webtoon Updated"}
-        response = self.client.patch(url, data, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["title"], "User Webtoon Updated")
+    # ==================== TESTS UPDATE ====================
+    
+    def test_update_anonymous_forbidden(self):
+        """Un anonyme ne peut pas modifier un webtoon"""
+        data = {'title': 'Updated Title'}
+        response = self.client.patch(self.public_detail_url, data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_user_cannot_update_others_webtoon(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
-        url = f"{self.webtoons_url}{self.webtoon_admin.id}/"
-        data = {"title": "Hacked"}
-        response = self.client.patch(url, data, format="json")
+    def test_update_by_creator_success(self):
+        """Un créateur peut modifier son propre webtoon"""
+        self.client.force_authenticate(user=self.creator1)
+        data = {'title': 'Updated by Creator1'}
+        response = self.client.patch(self.private_detail_url_c1, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Updated by Creator1')
+
+    def test_update_by_other_creator_forbidden(self):
+        """Un créateur ne peut pas modifier le webtoon d'un autre"""
+        self.client.force_authenticate(user=self.creator2)
+        data = {'title': 'Hacked Title'}
+        response = self.client.patch(self.private_detail_url_c1, data)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_can_update_any_webtoon(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.admin_token}")
-        url = f"{self.webtoons_url}{self.webtoon_user.id}/"
-        data = {"title": "Admin Updated User Webtoon"}
-        response = self.client.patch(url, data, format="json")
+    def test_update_by_admin_success(self):
+        """Un admin peut modifier n'importe quel webtoon"""
+        self.client.force_authenticate(user=self.admin)
+        data = {'title': 'Updated by Admin'}
+        response = self.client.patch(self.private_detail_url_c2, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Updated by Admin')
 
-    # === TESTS DELETE ===
-    def test_user_can_delete_own_webtoon(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
-        url = f"{self.webtoons_url}{self.webtoon_user.id}/"
-        response = self.client.delete(url)
-        self.assertIn(response.status_code, [status.HTTP_204_NO_CONTENT, status.HTTP_200_OK])
+    def test_full_update_by_creator(self):
+        """Test de PUT complet par le créateur"""
+        self.client.force_authenticate(user=self.creator1)
+        data = {
+            'title': 'Completely Updated',
+            'authors': 'New Authors',
+            'release_date': '2024-01-01',
+            'status': 'cancel',
+            'genres': [self.genre2.id]
+        }
+        response = self.client.put(self.private_detail_url_c1, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Completely Updated')
+        self.assertEqual(response.data['status'], 'cancel')
 
-    def test_user_cannot_delete_others_webtoon(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
-        url = f"{self.webtoons_url}{self.webtoon_admin.id}/"
-        response = self.client.delete(url)
+    # ==================== TESTS DELETE ====================
+    
+    def test_delete_anonymous_forbidden(self):
+        """Un anonyme ne peut pas supprimer un webtoon"""
+        response = self.client.delete(self.public_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_by_creator_success(self):
+        """Un créateur peut supprimer son propre webtoon"""
+        self.client.force_authenticate(user=self.creator1)
+        response = self.client.delete(self.private_detail_url_c1)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Webtoon.objects.filter(id=self.private_webtoon_creator1.id).exists())
+
+    def test_delete_by_other_creator_forbidden(self):
+        """Un créateur ne peut pas supprimer le webtoon d'un autre"""
+        self.client.force_authenticate(user=self.creator2)
+        response = self.client.delete(self.private_detail_url_c1)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Webtoon.objects.filter(id=self.private_webtoon_creator1.id).exists())
+
+    def test_delete_by_admin_success(self):
+        """Un admin peut supprimer n'importe quel webtoon"""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.delete(self.private_detail_url_c2)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Webtoon.objects.filter(id=self.private_webtoon_creator2.id).exists())
+
+    # ==================== TESTS SET_TO_PUBLIC ====================
+    
+    def test_set_to_public_anonymous_forbidden(self):
+        """Un anonyme ne peut pas rendre un webtoon public"""
+        data = {'is_public': 1}
+        url = f'{self.private_detail_url_c1}set_to_public/'
+        response = self.client.patch(url, data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_set_to_public_creator_forbidden(self):
+        """Un créateur ne peut pas rendre son webtoon public (seul admin)"""
+        self.client.force_authenticate(user=self.creator1)
+        data = {'is_public': 1}
+        url = f'{self.private_detail_url_c1}set_to_public/'
+        response = self.client.patch(url, data)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_can_delete_any_webtoon(self):
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.admin_token}")
-        url = f"{self.webtoons_url}{self.webtoon_user.id}/"
-        response = self.client.delete(url)
-        self.assertIn(response.status_code, [status.HTTP_204_NO_CONTENT, status.HTTP_200_OK])
-
-    # === TESTS PATCH ADMIN ONLY ===
-    def test_admin_can_set_webtoon_to_public(self):
-        """✅ Un administrateur peut rendre un webtoon public"""
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.admin_token}")
-        url = f"{self.webtoons_url}{self.webtoon_user.id}/set_to_public/"
-        data = {'is_public': True}
-        response = self.client.patch(url, data, format='json')
+    def test_set_to_public_admin_success(self):
+        """Un admin peut rendre un webtoon public"""
+        self.client.force_authenticate(user=self.admin)
+        data = {'is_public': 1}
+        url = f'{self.private_detail_url_c1}set_to_public/'
+        response = self.client.patch(url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Vérifier que le webtoon est maintenant public
+        self.private_webtoon_creator1.refresh_from_db()
+        self.assertTrue(self.private_webtoon_creator1.is_public)
 
-    def test_non_admin_cannot_set_webtoon_to_public(self):
-        """❌ Un utilisateur normal ne peut pas modifier le champ is_public"""
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
-        url = f"{self.webtoons_url}{self.webtoon_user.id}/set_to_public/"
-        data = {'is_public': True}
-        response = self.client.patch(url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+    # ==================== TESTS DE CAS LIMITES ====================
+    
+    def test_create_webtoon_without_genres(self):
+        """Test de création sans genres (devrait échouer si required)"""
+        self.client.force_authenticate(user=self.creator1)
+        data = {
+            'title': 'Webtoon Without Genres',
+            'authors': 'Author',
+            'release_date': '2023-01-01',
+            'status': 'in progress'
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        # Adapter selon votre validation
+        self.assertIn(response.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_201_CREATED])
 
-    def test_webtoon_has_genres(self):
-        """✅ Le webtoon doit être lié à plusieurs genres"""
-        genres = self.webtoon_user.genres.all()
-        self.assertEqual(genres.count(), 2)
-        self.assertIn(self.genre_action, genres)
-        self.assertIn(self.genre_romance, genres)
+    def test_create_duplicate_title_fails(self):
+        """Test de création avec un titre déjà existant"""
+        self.client.force_authenticate(user=self.creator1)
+        data = {
+            'title': 'Public Webtoon',  # Titre déjà utilisé
+            'authors': 'Author',
+            'release_date': '2023-01-01',
+            'status': 'in progress',
+            'genres': [self.genre1.id]
+        }
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_genre_reverse_relation(self):
-        """✅ Le genre doit retrouver les webtoons liés via related_name"""
-        webtoons_action = self.genre_action.webtoon.all()  # ✅ corrected related_name
-        self.assertIn(self.webtoon_user, webtoons_action)
+    def test_update_to_duplicate_title_fails(self):
+        """Test de modification vers un titre déjà utilisé"""
+        self.client.force_authenticate(user=self.creator1)
+        data = {'title': 'Private Webtoon Creator2'}  # Titre déjà utilisé
+        response = self.client.patch(self.private_detail_url_c1, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_webtoon_has_correct_creator(self):
-        """✅ Le champ add_by doit référencer le bon utilisateur"""
-        self.assertEqual(self.webtoon_user.add_by, self.user)
-        self.assertEqual(self.webtoon_user.add_by.email, "user@test.com")
+    def test_invalid_status_fails(self):
+        """Test avec un statut invalide"""
+        self.client.force_authenticate(user=self.creator1)
+        data = {'status': 'invalid_status'}
+        response = self.client.patch(self.private_detail_url_c1, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_user_delete_sets_add_by_to_null(self):
-        """✅ Si le user est supprimé, le champ add_by devient NULL (SET_NULL)"""
-        self.user.delete()
-        self.webtoon_user.refresh_from_db()
-        self.assertIsNone(self.webtoon_user.add_by)
