@@ -90,7 +90,3 @@ export default function HomePage() {
     </div>
   );
 }
-<div className="animate-pulse-custom">
-  Vitrine avec effet de pulse ✨
-</div>
-<div className="pulse">Vitrine</div>
