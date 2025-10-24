@@ -13,5 +13,6 @@ class Release(BaseModel):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
+        related_name='release'
     )
  
