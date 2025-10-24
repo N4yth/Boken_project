@@ -43,6 +43,7 @@ class WebtoonSerializer(serializers.ModelSerializer):
         """Remplace la liste d’IDs des genres par leurs données complètes"""
         rep = super().to_representation(instance)
         rep["genres"] = GenreSerializer(instance.genres.all(), many=True).data
+        rep["releases"] = ReleaseSerializer(instance.release.all(), many=True).data
         return rep
 
 class ReleaseSerializer(serializers.ModelSerializer):
