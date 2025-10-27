@@ -36,7 +36,8 @@ export default function LoginPage() {
         setError(data.detail || "Erreur lors de la connexion");
       } else {
         // Stockage du cookie côté client
-        document.cookie = `token=${data.token}; path=/; max-age=${60*60*24}; sameSite=strict`;
+        document.cookie = `token=${data.access}; path=/; max-age=${60*60*24}; sameSite=strict;`;
+        document.cookie = `username=${data.username}; path=/; max-age=${60*60*24}; sameSite=strict;`;
         
         router.push("/"); // Redirection après login
       }
