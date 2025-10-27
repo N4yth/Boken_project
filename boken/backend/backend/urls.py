@@ -1,9 +1,7 @@
 from django.urls import path, include
 from rest_framework import routers
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
+from api.views.login import MyTokenObtainPairView
 from api.views.user import UserViewSet
 from api.views.webtoon import WebtoonViewSet
 from api.views.genre import GenreViewSet
@@ -24,7 +22,7 @@ urlpatterns = [
     path('admin/update/', get_progress, name='update'),
 
     path('api/', include(router.urls)),
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 

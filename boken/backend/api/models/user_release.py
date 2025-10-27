@@ -19,10 +19,13 @@ class UserRelease(BaseModel):
         on_delete=models.CASCADE,
         null=False,
         blank=False,
+        related_name='userrelease',
+        unique=True
     )
     user_id = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         null=False,
         blank=False,
+        related_name='userrelease'
     )

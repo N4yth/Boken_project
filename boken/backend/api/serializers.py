@@ -4,7 +4,24 @@ from .models.webtoon import Webtoon
 from .models.genre import Genre
 from .models.release import Release
 from .models.user_release import UserRelease
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+
+        # Tu peux ajouter ici des infos dans le token si tu veux
+        token['username'] = user.username
+
+        return token
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # Ajoute ici ce que tu veux retourner dans la réponse JSON
+        data['username'] = self.user.username
+        return data
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
