@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from api.permissions import IsCreatorOrAdmin
 from api.models.webtoon import Webtoon
+from api.models.user import User
 from api.serializers import WebtoonSerializer
 from django.db.models import Q
 
@@ -71,3 +72,14 @@ class WebtoonViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(instance)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response({"detail": "Not allowed"}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def get_library(self, request):
+        try:
+            library = Webtoon.objects.filter(release__userrelease__user_id = request.user.id)
+            serializer = WebtoonSerializer(library, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
