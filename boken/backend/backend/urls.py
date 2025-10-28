@@ -3,7 +3,7 @@ from rest_framework import routers
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.login import MyTokenObtainPairView
 from api.views.user import UserViewSet
-from api.views.webtoon import WebtoonViewSet
+from api.views.webtoon import WebtoonViewSet, WebtoonSearchView
 from api.views.genre import GenreViewSet
 from api.views.release import ReleaseViewSet
 from api.views.user_release import UserReleaseViewSet
@@ -20,6 +20,8 @@ urlpatterns = [
     path('admin/update_all/', update_all, name='update_all'),
     path('admin/create/', create_new, name='create_new'),
     path('admin/update/', get_progress, name='update'),
+
+    path('api/webtoons/search/', WebtoonSearchView.as_view(), name='webtoon-search'),
 
     path('api/', include(router.urls)),
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
