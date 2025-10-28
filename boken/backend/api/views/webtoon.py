@@ -5,10 +5,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from api.permissions import IsCreatorOrAdmin
 from api.models.webtoon import Webtoon
-from api.models.user import User
+from django_filters import rest_framework as filters
 from api.serializers import WebtoonSerializer
+from api.models.genre import Genre
 from django.db.models import Q
-
+from rest_framework import generics
 
 class WebtoonViewSet(viewsets.ModelViewSet):
     queryset = Webtoon.objects.all()
@@ -83,3 +84,36 @@ class WebtoonViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WebtoonFilter(filters.FilterSet):
+    title = filters.CharFilter(field_name='title', lookup_expr='icontains')
+    author = filters.CharFilter(field_name='authors', lookup_expr='icontains')
+    genres = filters.ModelMultipleChoiceFilter(
+        field_name='genres__id',
+        to_field_name='id',
+        queryset=Genre.objects.all()
+    )
+    min_chapters = filters.NumberFilter(
+        field_name='releases__total_chapter',
+        lookup_expr='gte'
+    )
+    max_chapters = filters.NumberFilter(
+        field_name='releases__total_chapter',
+        lookup_expr='lte'
+    )
+    min_rating = filters.NumberFilter(field_name='rating', lookup_expr='gte')
+    max_rating = filters.NumberFilter(field_name='rating', lookup_expr='lte')
+    status = filters.CharFilter(field_name='status', lookup_expr='iexact')
+    
+    class Meta:
+        model = Webtoon
+        fields = ['title', 'author', 'genres', 'min_chapters', 
+                  'max_chapters', 'min_rating', 'max_rating', 'status']
+
+class WebtoonSearchView(generics.ListAPIView):
+    queryset = Webtoon.objects.all().prefetch_related('release', 'genres').distinct()
+    serializer_class = WebtoonSerializer
+    filter_backends = [filters.DjangoFilterBackend]
+    filterset_class = WebtoonFilter
+    permission_classes = [AllowAny]

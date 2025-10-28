@@ -6,6 +6,7 @@ import './globals.css';
 
 type Release = {
   id: string;
+  total_chapter: number;
 }
 
 
@@ -13,6 +14,7 @@ type Webtoon = {
   id: string;
   title: string;
   authors: string;
+  rating: number;
   releases: Release[];
 };
 
@@ -49,26 +51,20 @@ function useAuth(): AuthState {
     isLogged: false,
     username: ""
   });
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Check auth state on mount and when window gains focus
+    // Initial auth check on mount
     const checkAuth = () => {
       const token = getCookie('token');
       const username = getCookie('username');
-      
-      setAuthState({
-        isLogged: !!token,
-        username: username || ""
-      });
+      setAuthState({ isLogged: !!token, username: username || "" });
     };
 
-    // Initial check
     checkAuth();
+    setMounted(true);
 
-    // Re-check when window gains focus (user returns from login page)
     window.addEventListener('focus', checkAuth);
-
-    // Optional: Poll cookies periodically as backup
     const interval = setInterval(checkAuth, 1000);
 
     return () => {
@@ -77,7 +73,7 @@ function useAuth(): AuthState {
     };
   }, []);
 
-  return authState;
+  return mounted ? authState : { isLogged: false, username: "" };
 }
 
 export default function Library() {
@@ -132,10 +128,18 @@ export default function Library() {
 
   const handleLibrary = useCallback(() => {
     if (!isLogged) {
-      alert("Please login to go to you'r library");
+      alert("Please login to go to your library");
       return;
     }
     router.push("/library");
+  }, [router, isLogged]);
+
+  const handleHome = useCallback(() => {
+    router.push("/");
+  }, [router]);
+
+  const handleAdvancedSearch = useCallback(() => {
+    router.push("/advanced_search");
   }, [router]);
 
   const handleLogout = useCallback(() => {
@@ -193,7 +197,6 @@ export default function Library() {
   }, [isLogged]);
 
   const handleWebtoonClick = useCallback((webtoonId: string) => {
-    // Add navigation logic here
     console.log("Webtoon clicked:", webtoonId);
   }, []);
 
@@ -270,7 +273,7 @@ export default function Library() {
             >
               {/* Favorite Button */}
               <button 
-                className="absolute top-4 right-4 text-pink-500 hover:text-pink-600 transition-colors z-10 disabled:opacity-50"
+                className="absolute top-4 right-4 text-pink-500 hover:text-pink-600 transition-colors z-9 disabled:opacity-50"
                 onClick={(e) => {
                   e.stopPropagation();
 
@@ -303,16 +306,27 @@ export default function Library() {
                     {webtoon.authors}
                   </p>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">16 Chap</span>
-                    <div className="flex gap-1" aria-label="Rating: 4 out of 5">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-2 h-2 rounded-full ${
-                            i < 4 ? "bg-white" : "bg-white/40"
-                          }`}
-                        />
-                      ))}
+                    <span className="text-sm font-medium">
+                      {webtoon.releases?.[0]?.total_chapter} Chap
+                    </span>
+                    <div className="flex gap-1" aria-label={`Rating: ${webtoon.rating} out of 5`}>
+                      {[...Array(5)].map((_, i) => {
+                        const rating = webtoon.rating;
+                        let fillClass = "bg-white/20"; // par défaut : vide
+
+                        if (rating >= i + 1) {
+                          fillClass = "bg-white"; // rond plein
+                        } else if (rating >= i + 0.5) {
+                          fillClass = "bg-gradient-to-r from-white to-white/20"; // rond à moitié rempli
+                        }
+
+                        return (
+                          <div
+                            key={i}
+                            className={`w-2.5 h-2.5 rounded-full ${fillClass}`}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -337,12 +351,14 @@ export default function Library() {
           <button 
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
             aria-label="Search"
+            onClick={() => handleAdvancedSearch()}
           >
             <Search className="w-6 h-6" />
           </button>
           <button 
             className="p-2 text-indigo-600 hover:text-indigo-700 transition-colors"
             aria-label="Home"
+            onClick={() => handleHome()}
           >
             <Home className="w-6 h-6" />
           </button>
