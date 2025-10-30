@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Search, Home, User, Settings, Bell, Heart, ChevronDown, ChevronUp, X, Filter } from "lucide-react";
+import { Search, Heart, ChevronDown, ChevronUp, X, Filter, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { verifyToken, useAuth, refreshToken, getCookie } from "@/utils/userAuth";
 
 type Genre = {
   id: string;
@@ -19,60 +20,17 @@ type Webtoon = {
   authors: string;
   rating: number;
   releases: Release[];
+  addble: boolean;
 };
 
 type UserReleaseData = {
   release_id: string;
   chapter_read: number;
+  personal_total_chapter: number;
   note: string;
   rating: number;
   reading_status: string;
 };
-
-type AuthState = {
-  isLogged: boolean;
-  username: string;
-};
-
-// Utility function to get cookie value
-function getCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const cookies: Record<string, string> = {};
-  document.cookie.split('; ').forEach(cookie => {
-    const [key, value] = cookie.split('=');
-    if (key && value) {
-      cookies[key] = decodeURIComponent(value);
-    }
-  });
-  return cookies[name];
-}
-
-function useAuth(): AuthState {
-  const [authState, setAuthState] = useState<AuthState>(() => {
-    if (typeof document === 'undefined') return { isLogged: false, username: "" };
-    const token = getCookie('token');
-    const username = getCookie('username');
-    return { isLogged: !!token, username: username || "" };
-  });
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = getCookie('token');
-      const username = getCookie('username');
-      setAuthState({ isLogged: !!token, username: username || "" });
-    };
-
-    window.addEventListener('focus', checkAuth);
-    const interval = setInterval(checkAuth, 1000);
-
-    return () => {
-      window.removeEventListener('focus', checkAuth);
-      clearInterval(interval);
-    };
-  }, []);
-
-  return authState;
-}
 
 export default function AdvancedSearch() {
   const [genres, setGenres] = useState<Genre[]>([]);
@@ -91,8 +49,22 @@ export default function AdvancedSearch() {
   const [showGenres, setShowGenres] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
-  const { isLogged, username } = useAuth();
+  const { isLogged, token } = useAuth();
   const [favoriteLoading, setFavoriteLoading] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(10);
+
+
+  useEffect(() => {
+    if (isLogged) {
+      const checkLogin = async () => {
+        const valid = await verifyToken(token);
+        if (!valid) {
+          await refreshToken();
+        }
+      };
+      checkLogin();
+    }  
+  }, [isLogged, token]);
 
   // Fetch genres on mount
   useEffect(() => {
@@ -135,8 +107,8 @@ export default function AdvancedSearch() {
     setHasSearched(false);
   };
 
-  const handleFavorite = useCallback(async (releaseId: string) => {
-    if (!isLogged) {
+  const handleFavorite = useCallback(async (webtoonId: string, releaseId: string) => {
+    if (!isLogged || !token) {
       alert("Please login to add favorites");
       return;
     }
@@ -144,16 +116,16 @@ export default function AdvancedSearch() {
     setFavoriteLoading(releaseId);
 
     try {
-      const token = getCookie('token');
       const requestData: UserReleaseData = {
         release_id: releaseId,
+        personal_total_chapter: 0,
         chapter_read: 0,
         note: "",
         rating: 0.0,
         reading_status: "to read"
       };
 
-      const response = await fetch("http://127.0.0.1:8000/api/usereleases/", {
+      const creation_response = await fetch("http://127.0.0.1:8000/api/usereleases/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -162,12 +134,17 @@ export default function AdvancedSearch() {
         body: JSON.stringify(requestData)
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!creation_response.ok) {
+        throw new Error(`HTTP error! status: ${creation_response.status}`);
       }
 
-      const data = await response.json();
-      console.log("Added to favorites:", data);
+      // Mettre à jour l'état local du webtoon
+      setSearchResults(prevResults =>
+        prevResults.map(wt =>
+          wt.id === webtoonId ? { ...wt, addble: false } : wt
+        )
+      );
+
       alert("Added to your reading list!");
     } catch (err) {
       console.error("Failed to add favorite:", err);
@@ -175,22 +152,20 @@ export default function AdvancedSearch() {
     } finally {
       setFavoriteLoading(null);
     }
-  }, [isLogged]);
+  }, [isLogged, token]);
 
   const handleWebtoonClick = useCallback((webtoonId: string) => {
-    console.log("Webtoon clicked:", webtoonId);
-  }, []);
+    document.cookie = `webtoon=${webtoonId}; path=/; max-age=900; sameSite=strict;`;
+    router.push("/display_webtoon");
+  }, [router]);
 
   // Handle search
   const handleSearch = async () => {
     setLoading(true);
     setHasSearched(true);
-    setShowFilters(false); // Hide filters on mobile after search
+    setShowFilters(false);
 
     try {
-      const token = getCookie('token');
-
-      // Build query parameters
       const params = new URLSearchParams();
       if (webtoonTitle) params.append('title', webtoonTitle);
       if (authorName) params.append('author', authorName);
@@ -207,7 +182,7 @@ export default function AdvancedSearch() {
         "Content-Type": "application/json",
       };
 
-      if (token) {
+      if (token && token !== "" && token !== "undefined") {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
@@ -221,6 +196,7 @@ export default function AdvancedSearch() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log(data)
         setSearchResults(data);
       } else {
         setSearchResults([]);
@@ -233,17 +209,6 @@ export default function AdvancedSearch() {
     }
   };
 
-  const handleHome = useCallback(() => {
-    router.push("/");
-  }, [router]);
-
-  const handleLibrary = useCallback(() => {
-    if (!isLogged) {
-      alert("Please login to go to you'r library");
-      return;
-    }
-    router.push("/library");
-  }, [router]);
 
   // Count active filters
   const activeFiltersCount = [
@@ -257,14 +222,34 @@ export default function AdvancedSearch() {
     selectedGenres.length > 0
   ].filter(Boolean).length;
 
+  // Gestion du scroll infini
+  useEffect(() => {
+    const handleScroll = () => {
+      const bottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+      if (bottom && visibleCount < searchResults.length) {
+        setVisibleCount((prev) => prev + 10);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [visibleCount, searchResults.length]);
+
+  // Reset visible count on search
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [searchResults]);
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Header - Mobile optimized */}
       <header className="bg-white px-4 py-3 shadow-sm sticky top-0 z-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-indigo-600">
-            Advanced Search
-          </h1>
+          <div>
+            <h1 className="text-xl font-bold text-indigo-600">
+              Advanced Search
+            </h1>
+          </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 px-3 py-2 bg-indigo-100 text-indigo-600 rounded-lg font-medium hover:bg-indigo-200 transition-colors"
@@ -424,7 +409,7 @@ export default function AdvancedSearch() {
                 </select>
               </div>
 
-              {/* Action Buttons - Sticky at bottom of filters */}
+              {/* Action Buttons */}
               <div className="flex gap-2 pt-2 sticky bottom-0 bg-white pb-2">
                 <button
                   onClick={clearFilters}
@@ -474,117 +459,96 @@ export default function AdvancedSearch() {
               </div>
             ) : (
               <div className="space-y-3">
-                {searchResults.map((webtoon) => (
-                  <article
-                    key={webtoon.id}
-                    className="bg-gradient-to-br from-indigo-200 via-indigo-300 to-indigo-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => handleWebtoonClick(webtoon.id)}
-                  >
-                    {/* Favorite Button */}
-                    <button
-                      className="absolute top-4 right-4 text-pink-500 hover:text-pink-600 transition-colors z-9 disabled:opacity-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
+                {searchResults.slice(0, visibleCount).map((webtoon) => {
+                  const firstRelease = webtoon.releases?.[0];
+                  const isLoadingThis = favoriteLoading === firstRelease?.id;
 
-                        // Sécurise l'accès à la première release
-                        const firstRelease = webtoon.releases?.[0];
-                        if (!firstRelease) {
-                          alert("Ce webtoon n’a pas encore de release associée !");
-                          return;
-                        }
-
-                        // Envoie l'ID correct
-                        handleFavorite(firstRelease.id);
-                      }}
-                      disabled={favoriteLoading === webtoon.releases?.[0]?.id || !webtoon.releases?.length}
-                      aria-label={`Add ${webtoon.title} to favorites`}
+                  return (
+                    <article
+                      key={webtoon.id}
+                      className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => handleWebtoonClick(webtoon.id)}
                     >
-                      {favoriteLoading === webtoon.releases?.[0]?.id ? (
-                        <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Heart className="w-6 h-6 fill-current" />
+                      {isLogged && (
+                        <button
+                          className={`absolute top-4 right-4 transition-colors z-9 ${!webtoon.addble
+                              ? 'text-pink-500 cursor-default'
+                              : 'text-white hover:text-pink-500'
+                            } disabled:opacity-50`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!webtoon.addble) {
+                              alert("This webtoon is already in your library");
+                              return;
+                            }
+                            if (!firstRelease) {
+                              alert("This webtoon doesn't have a release yet!");
+                              return;
+                            }
+                            handleFavorite(webtoon.id, firstRelease.id);
+                          }}
+                          disabled={isLoadingThis || !firstRelease}
+                          aria-label={`${!webtoon.addble ? 'Already in library' : 'Add to library'}: ${webtoon.title}`}
+                        >
+                          {isLoadingThis ? (
+                            <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Heart className={`w-6 h-6 ${!webtoon.addble ? 'fill-current' : ''}`} />
+                          )}
+                        </button>
                       )}
-                    </button>
 
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1 text-white pr-8">
-                        <h3 className="text-lg font-semibold mb-1">
-                          {webtoon.title}
-                        </h3>
-                        <p className="text-sm opacity-90 mb-2">
-                          {webtoon.authors}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">
-                            {webtoon.releases?.[0]?.total_chapter} Chap
-                          </span>
-                          <div className="flex gap-1" aria-label={`Rating: ${webtoon.rating} out of 5`}>
-                            {[...Array(5)].map((_, i) => {
-                              const rating = webtoon.rating;
-                              let fillClass = "bg-white/20"; // par défaut : vide
-
-                              if (rating >= i + 1) {
-                                fillClass = "bg-white"; // rond plein
-                              } else if (rating >= i + 0.5) {
-                                fillClass = "bg-gradient-to-r from-white to-white/20"; // rond à moitié rempli
-                              }
-
-                              return (
-                                <div
-                                  key={i}
-                                  className={`w-2.5 h-2.5 rounded-full ${fillClass}`}
-                                />
-                              );
-                            })}
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 text-white pr-8">
+                          <h3 className="text-lg font-semibold mb-1">
+                            {webtoon.title}
+                          </h3>
+                          <p className="text-sm opacity-90 mb-2">
+                            {webtoon.authors}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {firstRelease?.total_chapter || 0} Chap
+                            </span>
+                            <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2 py-1">
+                              <div className="flex items-center gap-0.5">
+                                {[...Array(5)].map((_, i) => {
+                                  const rating = webtoon?.rating ?? 0;
+                                  const fillPercent = rating >= i + 1 ? 100 : rating >= i + 0.5 ? 50 : 0;
+                                  return (
+                                    <div key={i} className="relative w-3.5 h-3.5">
+                                      <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-white/40 fill-white/40" />
+                                      <div
+                                        className="absolute top-0 left-0 overflow-hidden"
+                                        style={{ width: `${fillPercent}%` }}
+                                      >
+                                        <Star className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <span className="text-xs sm:text-sm font-bold">
+                                {webtoon?.rating ?? 0}/5
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
+
+                {visibleCount < searchResults.length && (
+                  <div className="text-center text-gray-400 py-6">
+                    Loading more...
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
       </main>
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 shadow-lg">
-        <div className="flex justify-between items-center max-w-md mx-auto">
-          <button
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell className="w-6 h-6" />
-          </button>
-          <button
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Search"
-          >
-            <Search className="w-6 h-6" />
-          </button>
-          <button
-            className="p-2 text-indigo-600 hover:text-indigo-700 transition-colors"
-            aria-label="Home"
-            onClick={() => handleHome()}
-          >
-            <Home className="w-6 h-6" />
-          </button>
-          <button
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Profile"
-            onClick={() => handleLibrary()}
-          >
-            <User className="w-6 h-6" />
-          </button>
-          <button
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Settings"
-          >
-            <Settings className="w-6 h-6" />
-          </button>
-        </div>
-      </nav>
     </div>
   );
 }
