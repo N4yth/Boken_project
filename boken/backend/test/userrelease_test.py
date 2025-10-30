@@ -72,6 +72,7 @@ class UserReleasePermissionTests(APITestCase):
             release_id=self.release1,
             user_id=self.user1,
             chapter_read=10,
+            personal_total_chapter= 11,
             note="Great story",
             rating=4.5,
             reading_status="reading",
@@ -81,6 +82,7 @@ class UserReleasePermissionTests(APITestCase):
             release_id=self.release2,
             user_id=self.user2,
             chapter_read=25,
+            personal_total_chapter= 26,
             note="Amazing",
             rating=5.0,
             reading_status="finish",
@@ -147,6 +149,7 @@ class UserReleasePermissionTests(APITestCase):
         data = {
             "release_id": self.release1.id,
             "chapter_read": 15,
+            "personal_total_chapter": 16,
             "note": "Very good",
             "rating": 4.0,
             "reading_status": "reading",
@@ -166,6 +169,7 @@ class UserReleasePermissionTests(APITestCase):
         data = {
             "release_id": self.release1.id,
             "user_id": self.user2.id,  # Attempt to assign to different user
+            "personal_total_chapter": 11,
             "chapter_read": 10,
             "reading_status": "to read",
         }
@@ -183,6 +187,7 @@ class UserReleasePermissionTests(APITestCase):
         data = {
             "release_id": self.release1.id,
             "chapter_read": 20,
+            "personal_total_chapter": 500,
             "rating": 3.5,
             "reading_status": "reading",
         }
@@ -195,6 +200,7 @@ class UserReleasePermissionTests(APITestCase):
         data = {
             "release_id": self.release2.id,
             "chapter_read": 30,
+            "personal_total_chapter": 500,
             "note": "Best webtoon ever!",
             "rating": 5.0,
             "reading_status": "finish",
@@ -212,6 +218,7 @@ class UserReleasePermissionTests(APITestCase):
         data = {
             "release_id": self.release1.id,
             "chapter_read": 5,
+            "personal_total_chapter": 500,
             "reading_status": "invalid_status",
         }
         res = self.client.post(self.user_releases_url, data, format="json")
@@ -241,6 +248,7 @@ class UserReleasePermissionTests(APITestCase):
             url,
             {
                 "chapter_read": 25,
+                "personal_total_chapter": 500,
                 "note": "Updated note",
                 "rating": 4.8,
                 "reading_status": "finish",
@@ -304,7 +312,7 @@ class UserReleasePermissionTests(APITestCase):
         url = f"{self.user_releases_url}{self.user_release2.id}/"
         res = self.client.patch(
             url,
-            {"chapter_read": 40, "rating": 4.0, "reading_status": "reading"},
+            {"chapter_read": 40, "rating": 4.0, "personal_total_chapter": 500,"reading_status": "reading"},
             format="json",
         )
         self.assertEqual(res.status_code, status.HTTP_200_OK)
