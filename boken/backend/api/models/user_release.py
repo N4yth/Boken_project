@@ -9,7 +9,7 @@ class UserRelease(BaseModel):
         ("reading", "Reading"),
         ("to read", "To read"),
     )
-
+    personal_total_chapter = models.IntegerField(default=0)
     chapter_read = models.IntegerField(default=0)
     note = models.TextField(null=True, blank=True)
     rating = models.FloatField(default=0.0)
@@ -20,7 +20,6 @@ class UserRelease(BaseModel):
         null=False,
         blank=False,
         related_name='userrelease',
-        unique=True
     )
     user_id = models.ForeignKey(
         User,
