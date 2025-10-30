@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { Search, Home, User, Settings, Bell, Heart, LogIn, LogOut, Languages } from "lucide-react";
+import { Search, Heart, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { verifyToken, useAuth, refreshToken } from "@/utils/userAuth";
 import './globals.css';
 
 type Release = {
@@ -9,18 +10,13 @@ type Release = {
   total_chapter: number;
 }
 
-
 type Webtoon = {
   id: string;
   title: string;
   authors: string;
   rating: number;
   releases: Release[];
-};
-
-type AuthState = {
-  isLogged: boolean;
-  username: string;
+  addable: boolean;
 };
 
 type UserReleaseData = {
@@ -29,54 +25,10 @@ type UserReleaseData = {
   note: string;
   rating: number;
   reading_status: string;
+  personal_total_chapter: number;
 };
 
-// Utility function to get cookie value
-function getCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  
-  const cookies: Record<string, string> = {};
-  document.cookie.split('; ').forEach(cookie => {
-    const [key, value] = cookie.split('=');
-    if (key && value) {
-      cookies[key] = decodeURIComponent(value);
-    }
-  });
-  return cookies[name];
-}
-
-// Custom hook for authentication state
-function useAuth(): AuthState {
-  const [authState, setAuthState] = useState<AuthState>({
-    isLogged: false,
-    username: ""
-  });
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // Initial auth check on mount
-    const checkAuth = () => {
-      const token = getCookie('token');
-      const username = getCookie('username');
-      setAuthState({ isLogged: !!token, username: username || "" });
-    };
-
-    checkAuth();
-    setMounted(true);
-
-    window.addEventListener('focus', checkAuth);
-    const interval = setInterval(checkAuth, 1000);
-
-    return () => {
-      window.removeEventListener('focus', checkAuth);
-      clearInterval(interval);
-    };
-  }, []);
-
-  return mounted ? authState : { isLogged: false, username: "" };
-}
-
-export default function Library() {
+export default function HomePage() {
   const [webtoons, setWebtoons] = useState<Webtoon[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,21 +36,52 @@ export default function Library() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState<string | null>(null);
   const router = useRouter();
-  const { isLogged, username } = useAuth();
+  const { isLogged, token, mounted } = useAuth();
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  useEffect(() => {
+    if (isLogged) {
+      const checkLogin = async () => {
+        const valid = await verifyToken(token);
+        if (!valid) {
+          await refreshToken();
+        }
+      };
+      checkLogin();
+    }  
+  }, [isLogged, token]);
+
 
   // Fetch webtoons
   useEffect(() => {
+    if (!mounted) return;
     const fetchWebtoons = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/webtoons/");
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        if (isLogged) {
+          const response = await fetch("http://127.0.0.1:8000/api/webtoons/logged_user/", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setWebtoons(data);
+          setError(null);
+        } else {
+          const response = await fetch("http://127.0.0.1:8000/api/webtoons/");
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          setWebtoons(data);
+          setError(null);
         }
-        
-        const data = await response.json();
-        setWebtoons(data);
-        setError(null);
       } catch (err) {
         console.error("Failed to fetch webtoons:", err);
         setError("Failed to load webtoons. Please try again later.");
@@ -108,53 +91,20 @@ export default function Library() {
     };
 
     fetchWebtoons();
-  }, []);
+  }, [isLogged, token, mounted]);
 
   // Memoize filtered webtoons for performance
   const filteredWebtoons = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return webtoons;
-    
+
     return webtoons.filter((webtoon) =>
       webtoon.title.toLowerCase().includes(query) ||
       webtoon.authors.toLowerCase().includes(query)
     );
   }, [webtoons, searchQuery]);
 
-  // Handle navigation
-  const handleLogin = useCallback(() => {
-    router.push("/login");
-  }, [router]);
-
-  const handleLibrary = useCallback(() => {
-    if (!isLogged) {
-      alert("Please login to go to your library");
-      return;
-    }
-    router.push("/library");
-  }, [router, isLogged]);
-
-  const handleHome = useCallback(() => {
-    router.push("/");
-  }, [router]);
-
-  const handleAdvancedSearch = useCallback(() => {
-    router.push("/advanced_search");
-  }, [router]);
-
-  const handleLogout = useCallback(() => {
-    // Remove cookies
-    document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    
-    // Close modal
-    setShowLogoutConfirm(false);
-    
-    // Optionally redirect to home or refresh
-    window.location.reload();
-  }, []);
-
-  const handleFavorite = useCallback(async (releaseId: string) => {
+  const handleFavorite = useCallback(async (webtoonId: string, releaseId: string) => {
     if (!isLogged) {
       alert("Please login to add favorites");
       return;
@@ -163,30 +113,36 @@ export default function Library() {
     setFavoriteLoading(releaseId);
 
     try {
-      const token = getCookie('token');
       const requestData: UserReleaseData = {
         release_id: releaseId,
         chapter_read: 0,
+        personal_total_chapter: 0,
         note: "",
         rating: 0.0,
         reading_status: "to read"
       };
-
-      const response = await fetch("http://127.0.0.1:8000/api/usereleases/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (isLogged) {
+        const response = await fetch("http://127.0.0.1:8000/api/usereleases/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify(requestData)
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
       }
+      else {
+        alert('please login before add to your library')
+      }
+      setWebtoons(prevWebtoons =>
+        prevWebtoons.map(wt =>
+          wt.id === webtoonId ? { ...wt, addable: false } : wt
+        )
+      );
 
-      const data = await response.json();
-      console.log("Added to favorites:", data);
       alert("Added to your reading list!");
     } catch (err) {
       console.error("Failed to add favorite:", err);
@@ -197,8 +153,27 @@ export default function Library() {
   }, [isLogged]);
 
   const handleWebtoonClick = useCallback((webtoonId: string) => {
-    console.log("Webtoon clicked:", webtoonId);
-  }, []);
+    document.cookie = `webtoon=${webtoonId}; path=/; max-age=900; sameSite=strict;`;
+    router.push("/display_webtoon");
+  }, [router]);
+
+  // Infinite scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const bottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+      if (bottom && visibleCount < filteredWebtoons.length) {
+        setVisibleCount(prev => prev + 10);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [visibleCount, filteredWebtoons.length]);
+
+  // Reset visible count on search change
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [searchQuery]);
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -217,33 +192,6 @@ export default function Library() {
             aria-label="Search webtoons"
           />
         </div>
-
-        {/* Auth Section */}
-        {isLogged ? (
-          <div className="ml-4 flex items-center gap-3">
-            <div className="flex items-center gap-2 text-indigo-600 font-semibold">
-              <User className="w-5 h-5" />
-              <span className="hidden sm:inline">{username}</span>
-            </div>
-            <button
-              className="flex items-center gap-1 text-red-500 hover:text-red-600 font-semibold transition-colors"
-              onClick={() => setShowLogoutConfirm(true)}
-              aria-label="Logout"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        ) : (
-          <button
-            className="ml-4 flex items-center gap-1 text-indigo-600 hover:text-indigo-700 font-semibold transition-colors"
-            onClick={handleLogin}
-            aria-label="Login"
-          >
-            <LogIn className="w-5 h-5" />
-            <span className="hidden sm:inline">Login</span>
-          </button>
-        )}
       </header>
 
       {/* Main Content */}
@@ -259,152 +207,114 @@ export default function Library() {
         ) : filteredWebtoons.length === 0 ? (
           <div className="text-center text-gray-500 py-10">
             <p>
-              {searchQuery 
+              {searchQuery
                 ? `No webtoons found for "${searchQuery}"`
                 : "No webtoons available."}
             </p>
           </div>
         ) : (
-          filteredWebtoons.map((webtoon) => (
-            <article
-              key={webtoon.id}
-              className="bg-gradient-to-br from-indigo-200 via-indigo-300 to-indigo-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleWebtoonClick(webtoon.id)}
-            >
-              {/* Favorite Button */}
-              <button 
-                className="absolute top-4 right-4 text-pink-500 hover:text-pink-600 transition-colors z-9 disabled:opacity-50"
-                onClick={(e) => {
-                  e.stopPropagation();
+          <>
+            {filteredWebtoons.slice(0, visibleCount).map((webtoon) => {
+              const firstRelease = webtoon.releases?.[0];
+              const isLoadingThis = favoriteLoading === firstRelease?.id;
 
-                  // Sécurise l'accès à la première release
-                  const firstRelease = webtoon.releases?.[0];
-                  if (!firstRelease) {
-                    alert("Ce webtoon n’a pas encore de release associée !");
-                    return;
-                  }
+              return (
+                <article
+                  key={webtoon.id}
+                  className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => handleWebtoonClick(webtoon.id)}
+                >
+                  {isLogged && (
+                    <button
+                      className={`
+                        absolute top-4 right-4 z-9 transition-all duration-200
+                        ${webtoon.addable
+                          ? 'text-pink-500 cursor-not-allowed'
+                          : 'text-white hover:text-pink-500 cursor-pointer'
+                        }
+                        disabled:opacity-50
+                      `}
+                      onClick={(e) => {
+                        e.stopPropagation();
 
-                  // Envoie l'ID correct
-                  handleFavorite(firstRelease.id);
-                }}
-                disabled={favoriteLoading === webtoon.releases?.[0]?.id || !webtoon.releases?.length}
-                aria-label={`Add ${webtoon.title} to favorites`}
-              >
-                {favoriteLoading === webtoon.releases?.[0]?.id ? (
-                  <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Heart className="w-6 h-6 fill-current" />
-                )}
-              </button>
-
-              <div className="flex items-center gap-4">
-                <div className="flex-1 text-white pr-8">
-                  <h3 className="text-lg font-semibold mb-1">
-                    {webtoon.title}
-                  </h3>
-                  <p className="text-sm opacity-90 mb-2">
-                    {webtoon.authors}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">
-                      {webtoon.releases?.[0]?.total_chapter} Chap
-                    </span>
-                    <div className="flex gap-1" aria-label={`Rating: ${webtoon.rating} out of 5`}>
-                      {[...Array(5)].map((_, i) => {
-                        const rating = webtoon.rating;
-                        let fillClass = "bg-white/20"; // par défaut : vide
-
-                        if (rating >= i + 1) {
-                          fillClass = "bg-white"; // rond plein
-                        } else if (rating >= i + 0.5) {
-                          fillClass = "bg-gradient-to-r from-white to-white/20"; // rond à moitié rempli
+                        if (webtoon.addable) {
+                          alert("This webtoon is already in your library");
+                          return;
+                        }
+                        if (!firstRelease) {
+                          alert("This webtoon doesn't have a release yet!");
+                          return;
                         }
 
-                        return (
-                          <div
-                            key={i}
-                            className={`w-2.5 h-2.5 rounded-full ${fillClass}`}
-                          />
+                        setWebtoons((prev) =>
+                          prev.map((wt) =>
+                            wt.id === webtoon.id ? { ...wt, addable: false } : wt
+                          )
                         );
-                      })}
+
+                        handleFavorite(webtoon.id, firstRelease.id);
+                      }}
+                      disabled={isLoadingThis || !firstRelease}
+                      aria-label={`${!webtoon.addable ? 'Already in library' : 'Add to library'}: ${webtoon.title}`}
+                    >
+                      {isLoadingThis ? (
+                        <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Heart
+                          className={`w-6 h-6 transition-colors duration-200 ${webtoon.addable
+                            ? 'text-white hover:text-pink-500'
+                            : 'text-pink-500 fill-pink-500'
+                            }`}
+                        />
+                      )}
+                    </button>
+                  )}
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 text-white pr-8">
+                      <h3 className="text-lg font-semibold mb-1">{webtoon.title}</h3>
+                      <p className="text-sm opacity-90 mb-2">{webtoon.authors}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {firstRelease?.total_chapter || 0} Chap
+                        </span>
+                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2 py-1">
+                          <div className="flex items-center gap-0.5">
+                            {[...Array(5)].map((_, i) => {
+                              const rating = webtoon?.rating ?? 0;
+                              const fillPercent = rating >= i + 1 ? 100 : rating >= i + 0.5 ? 50 : 0;
+                              return (
+                                <div key={i} className="relative w-3.5 h-3.5">
+                                  <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-white/40 fill-white/40" />
+                                  <div
+                                    className="absolute top-0 left-0 overflow-hidden"
+                                    style={{ width: `${fillPercent}%` }}
+                                  >
+                                    <Star className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <span className="text-xs sm:text-sm font-bold">
+                            {webtoon?.rating ?? 0}/5
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </article>
+              );
+            })}
+
+            {visibleCount < filteredWebtoons.length && (
+              <div className="text-center text-gray-400 py-6">
+                Loading more...
               </div>
-            </article>
-          ))
+            )}
+          </>
         )}
       </main>
-
-      {/* Bottom Navigation */}
-      <nav 
-        className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 shadow-lg"
-        aria-label="Main navigation"
-      >
-        <div className="flex justify-between items-center max-w-md mx-auto">
-          <button 
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell className="w-6 h-6" />
-          </button>
-          <button 
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Search"
-            onClick={() => handleAdvancedSearch()}
-          >
-            <Search className="w-6 h-6" />
-          </button>
-          <button 
-            className="p-2 text-indigo-600 hover:text-indigo-700 transition-colors"
-            aria-label="Home"
-            onClick={() => handleHome()}
-          >
-            <Home className="w-6 h-6" />
-          </button>
-          <button 
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Profile"
-            onClick={() => handleLibrary()}
-          >
-            <User className="w-6 h-6" />
-          </button>
-          <button 
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Settings"
-          >
-            <Settings className="w-6 h-6" />
-          </button>
-        </div>
-      </nav>
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Confirm Logout
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to logout?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
-                onClick={() => setShowLogoutConfirm(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 text-white bg-red-500 hover:bg-red-600 rounded-lg font-medium transition-colors"
-                onClick={handleLogout}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
