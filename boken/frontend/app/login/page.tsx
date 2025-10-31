@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { verifyToken, useAuth  } from "@/utils/userAuth"
 import '../globals.css';
 
 export default function LoginPage() {
@@ -9,6 +10,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { mounted } = useAuth();
   
   // Login form
   const [loginData, setLoginData] = useState({
@@ -48,9 +50,18 @@ export default function LoginPage() {
       document.cookie = `token=${data.access}; path=/; max-age=900`;
       document.cookie = `refresh=${data.refresh}; path=/; max-age=900`;
       document.cookie = `username=${data.username}; path=/; max-age=900`;
-
-      // Redirect to home
-      router.push("/");
+      
+      
+      const valid = await verifyToken(data.access);
+      if (!valid) {
+        throw new Error ("invalid token after login")
+      }
+      if (!mounted) return;
+    
+      
+      
+      window.location.href = "/";
+      return;
     } catch (error) {
       console.error("Login error:", error);
       alert("Login failed. Please check your credentials.");
