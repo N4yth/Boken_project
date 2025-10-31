@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { Search, Star } from "lucide-react";
+import { Search, Star, User, Users } from "lucide-react";
 import { useAuth, getCookie, refreshToken, verifyToken } from "@/utils/userAuth";
+import WebtoonCard from "@/components/Webtoon_card"
 import { useRouter } from "next/navigation";
+import Image from 'next/image'
 import '../globals.css';
 
 type Release = {
@@ -16,16 +18,19 @@ type Webtoon = {
   authors: string;
   rating: number;
   releases: Release[];
+  UR_rating: number;
+  UR_total_chapter: number;
 };
 
 export default function Library() {
   const [webtoons, setWebtoons] = useState<Webtoon[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [switchData, setSwitch] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const [visibleCount, setVisibleCount] = useState(10);
-  const { isLogged, token, mounted } = useAuth();
+  const { isLogged, token } = useAuth();
 
   useEffect(() => {
     const checkLogin = async () => {
@@ -40,6 +45,10 @@ export default function Library() {
     };
     checkLogin();
   }, [isLogged, token]);
+
+  const handleswitch = useCallback(() => {
+    setSwitch(!switchData)
+  }, [switchData]);
 
   // Fetch webtoons
   useEffect(() => {
@@ -74,6 +83,7 @@ export default function Library() {
         }
 
         const data = await response.json();
+        console.log(data);
         setWebtoons(data);
         setError(null);
       } catch (err) {
@@ -124,6 +134,7 @@ export default function Library() {
     document.cookie = `webtoon=${webtoonId}; path=/; max-age=900; sameSite=lax;`;
     router.push("/library/update_webtoon")
   }, [router]);
+  
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -141,6 +152,19 @@ export default function Library() {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             aria-label="Search webtoons"
           />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={handleswitch}
+            className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gray/20 text-black rounded-full hover:bg-indigo/30 transition-all text-sm sm:text-base"
+          >
+              {switchData ? (
+                <Users className="w-4 h-4" />
+              ) : (
+                <User className="w-4 h-4" />
+              )}
+            
+          </button>
         </div>
       </header>
 
@@ -164,52 +188,15 @@ export default function Library() {
           </div>
         ) : (
           filteredWebtoons.map((webtoon) => (
-            <article
+            <WebtoonCard
               key={webtoon.id}
-              className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleWebtoonClick(webtoon.id)}
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex-1 text-white pr-8">
-                  <h3 className="text-lg font-semibold mb-1">
-                    {webtoon.title}
-                  </h3>
-                  <p className="text-sm opacity-90 mb-2">
-                    {webtoon.authors}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">
-                      {webtoon.releases?.[0]?.total_chapter} Chap
-                    </span>
-                    <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2 py-1">
-                      <div className="flex items-center gap-0.5">
-                        {[...Array(5)].map((_, i) => {
-                          const rating = webtoon?.rating ?? 0;
-                          const fillPercent =
-                            rating >= i + 1 ? 100 : rating >= i + 0.5 ? 50 : 0;
-
-                          return (
-                            <div key={i} className="relative w-3.5 h-3.5">
-                              <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-white/40 fill-white/40" />
-                              <div
-                                className="absolute top-0 left-0 overflow-hidden"
-                                style={{ width: `${fillPercent}%` }}
-                              >
-                                <Star className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <span className="text-xs sm:text-sm font-bold">
-                        {webtoon?.rating ?? 0}/5
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </article>
+              id={webtoon.id}
+              title={webtoon.title}
+              authors={webtoon.authors}
+              rating={switchData ? webtoon.rating : webtoon.UR_rating}
+              totalChapters={switchData ? webtoon.releases?.[0]?.total_chapter : webtoon.UR_total_chapter}
+              onClick={handleWebtoonClick}
+            />
           ))
         )}
       </main>
