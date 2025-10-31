@@ -5,7 +5,7 @@ from .models.genre import Genre
 from .models.release import Release
 from .models.user_release import UserRelease
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
+from rest_framework import serializers
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -70,6 +70,28 @@ class UserReleaseSerializer(serializers.ModelSerializer):
     user_id = UserSerializer(read_only=True)
 
     class Meta:
+        unique_together = ('user', 'release')
         model = UserRelease
         fields = ['id', 'personal_total_chapter', 'user_id', 'release_id', 'reading_status', 'rating', 'note', 'chapter_read', 'create_at', 'update_at']
         read_only_fields = ['id', 'user_id', 'create_at', 'update_at'] 
+
+class WebtoonSearchSerializer(serializers.ModelSerializer):
+    releases = ReleaseSerializer(many=True, read_only=True, source='release')
+    addable = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Webtoon
+        fields = ['id', 'title', 'authors', 'rating', 'releases', 'addable']
+    
+    def get_addable(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return True
+        if hasattr(obj, 'is_in_library'):
+            return not obj.is_in_library
+        from .models import UserRelease
+        has_in_library = UserRelease.objects.filter(
+            user=request.user,
+            release__webtoon=obj
+        ).exists()
+        return not has_in_library
