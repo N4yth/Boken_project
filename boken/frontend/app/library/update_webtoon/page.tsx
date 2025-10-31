@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Languages, Edit2, Save, X, Star } from "lucide-react";
 import { useAuth, getCookie, refreshToken, verifyToken } from "@/utils/userAuth";
 import { useRouter } from "next/navigation";
@@ -31,6 +31,8 @@ type Webtoon = {
   rating: number;
   releases: Release[];
   genres: Genre[];
+  is_public: boolean;
+  waiting_review: boolean;
 };
 
 type Genre = {
@@ -50,28 +52,29 @@ export default function updateWebtoon() {
   const displayRating = hoverRating ?? userelease?.rating ?? 0;
 
   useEffect(() => {
-      const checkLogin = async () => {
-        const valid = await verifyToken(token);
-        if (!valid) {
-          const refresh = await refreshToken();
-          if (!refresh) {
-            router.push('/')
-            return;
-          }
+    const checkLogin = async () => {
+      const valid = await verifyToken(token);
+      if (!valid) {
+        const refresh = await refreshToken();
+        if (!refresh) {
+          router.push('/')
+          return;
         }
-      };
-      checkLogin();
-    }, [isLogged, token]);
+      }
+    };
+    checkLogin();
+  }, [isLogged, token]);
 
   // Fetch webtoons
   useEffect(() => {
     const fetchWebtoons = async () => {
       try {
-        const token = getCookie('token');
+        if (!mounted) return;
         const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
           method: "GET",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
           }
         });
         const userelease = await fetch(`http://127.0.0.1:8000/api/usereleases/with_webtoon/${getCookie('webtoon')}/`, {
@@ -102,7 +105,7 @@ export default function updateWebtoon() {
     };
 
     fetchWebtoons();
-  }, [router]);
+  }, [router, token]);
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -112,6 +115,32 @@ export default function updateWebtoon() {
     setUserRelease(originalUserRelease);
     setIsEditing(false);
   };
+
+  const handlePublishRequest = useCallback(async () => {
+    if (confirm("Are you sure to ask for a review ?")) {
+      try {
+        if (!mounted) return;
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            waiting_review: true,
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        alert("request send")
+        router.push("/library")
+      } catch (err) {
+        alert("Failed to send request")
+        console.error("Failed to denied request:", err);
+      }
+    }
+  }, [router, token]);
 
   const handleSaveAll = async () => {
     if (!userelease) return;
@@ -166,10 +195,31 @@ export default function updateWebtoon() {
               <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-4 sm:p-6 text-white">
                 <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-4">
                   <div className="flex-1 w-full sm:w-auto">
+                    {/* public or not */}
+                    {webtoon.is_public ? (
+                      <div className="text-sm text-gray-400 italic font-normal text-right">
+                        webtoon is public
+                      </div>
+                    ) : webtoon.waiting_review ? (
+                      <div className="text-sm text-gray-400 italic font-normal text-right">
+                        waiting to be review
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={handlePublishRequest}
+                          className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all text-sm sm:text-base"
+                        >
+                          <span className="font-semibold">ask to publish</span>
+                        </button>
+                      </div>
+                    )}
                     <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">
                       {webtoon.title}
                     </h1>
                     <p className="text-indigo-100 text-xs sm:text-sm break-words">by {webtoon.authors}</p>
+
+                    
                   </div>
 
                   {/* Edit/Save Buttons */}
@@ -206,8 +256,8 @@ export default function updateWebtoon() {
                 <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 sm:gap-4">
                   <span
                     className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded-full ${webtoon.status === "Ongoing"
-                        ? "bg-green-400 text-green-900"
-                        : "bg-gray-300 text-gray-800"
+                      ? "bg-green-400 text-green-900"
+                      : "bg-gray-300 text-gray-800"
                       }`}
                   >
                     {webtoon.status}
