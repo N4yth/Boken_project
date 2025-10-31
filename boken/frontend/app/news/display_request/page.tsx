@@ -85,19 +85,56 @@ export default function updateWebtoon() {
     fetchWebtoons();
   }, [router, mounted]);
 
-  const handleDenied = useCallback(() => {
+  const handleDenied = useCallback(async () => {
     if (confirm("are you sure to refuse this webtoon ?")) {
-      console.log("refuse")
-      router.push("/news")
+      try {
+        if (!mounted) return;
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({waiting_review: false})
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        alert("request entry webtoon has be denied")
+        router.push("/news")
+      } catch (err) {
+        alert("Failed to denied request")
+        console.error("Failed to denied request:", err);
+      } 
     }
-  }, [router]);
+  }, [router, token]);
 
-  const HandleAccept = useCallback(() => {
+  const HandleAccept = useCallback(async () => {
     if (confirm("are you sure to accept this webtoon ?")) {
-      console.log("accept")
-      router.push("/news")
+      try {
+        if (!mounted) return;
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            waiting_review: false,
+            is_public: true
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        alert("webtoon is now public")
+        router.push("/news")
+      } catch (err) {
+        alert("Failed to denied request")
+        console.error("Failed to denied request:", err);
+      } 
     }
-  }, [router]);
+  }, [router, token]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col">
@@ -132,7 +169,7 @@ export default function updateWebtoon() {
                   <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5">
                     <BookOpen className="w-4 h-4" />
                     <span className="text-xs sm:text-sm font-semibold">
-                      {webtoon.releases[0]?.total_chapter ?? 0} Chapters
+                      {webtoon.releases[0]?.total_chapter} Chapters
                     </span>
                   </div>
                 </div>
@@ -179,10 +216,14 @@ export default function updateWebtoon() {
                       <h3 className="text-sm font-semibold text-gray-700">Total Chapters</h3>
                     </div>
                     <div className="text-xl font-bold text-purple-900">
-                      {webtoon.releases[0]?.total_chapter === 0 && (
+                      {webtoon.releases[0]?.total_chapter === 0 ? (
                         <div className="text-sm text-gray-400 italic font-normal">
                           The number of chapters is not found or not out in this language
                         </div>
+                      ) : (
+                        <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">
+                          {webtoon.releases[0]?.total_chapter}
+                        </p>
                       )}
                     </div>
                   </div>
