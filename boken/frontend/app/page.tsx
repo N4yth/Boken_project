@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Search, Heart, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
+import WebtoonCard from "@/components/Webtoon_card"
 import { verifyToken, useAuth, refreshToken } from "@/utils/userAuth";
 import './globals.css';
 
@@ -33,7 +34,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState<string | null>(null);
   const router = useRouter();
   const { isLogged, token, mounted } = useAuth();
@@ -48,7 +48,7 @@ export default function HomePage() {
         }
       };
       checkLogin();
-    }  
+    }
   }, [isLogged, token]);
 
 
@@ -71,6 +71,7 @@ export default function HomePage() {
           }
 
           const data = await response.json();
+          console.log(data)
           setWebtoons(data);
           setError(null);
         } else {
@@ -79,6 +80,7 @@ export default function HomePage() {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data = await response.json();
+          
           setWebtoons(data);
           setError(null);
         }
@@ -213,108 +215,23 @@ export default function HomePage() {
             </p>
           </div>
         ) : (
-          <>
-            {filteredWebtoons.slice(0, visibleCount).map((webtoon) => {
-              const firstRelease = webtoon.releases?.[0];
-              const isLoadingThis = favoriteLoading === firstRelease?.id;
-
-              return (
-                <article
-                  key={webtoon.id}
-                  className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => handleWebtoonClick(webtoon.id)}
-                >
-                  {isLogged && (
-                    <button
-                      className={`
-                        absolute top-4 right-4 z-9 transition-all duration-200
-                        ${webtoon.addable
-                          ? 'text-pink-500 cursor-not-allowed'
-                          : 'text-white hover:text-pink-500 cursor-pointer'
-                        }
-                        disabled:opacity-50
-                      `}
-                      onClick={(e) => {
-                        e.stopPropagation();
-
-                        if (webtoon.addable) {
-                          alert("This webtoon is already in your library");
-                          return;
-                        }
-                        if (!firstRelease) {
-                          alert("This webtoon doesn't have a release yet!");
-                          return;
-                        }
-
-                        setWebtoons((prev) =>
-                          prev.map((wt) =>
-                            wt.id === webtoon.id ? { ...wt, addable: false } : wt
-                          )
-                        );
-
-                        handleFavorite(webtoon.id, firstRelease.id);
-                      }}
-                      disabled={isLoadingThis || !firstRelease}
-                      aria-label={`${!webtoon.addable ? 'Already in library' : 'Add to library'}: ${webtoon.title}`}
-                    >
-                      {isLoadingThis ? (
-                        <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Heart
-                          className={`w-6 h-6 transition-colors duration-200 ${webtoon.addable
-                            ? 'text-white hover:text-pink-500'
-                            : 'text-pink-500 fill-pink-500'
-                            }`}
-                        />
-                      )}
-                    </button>
-                  )}
-
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 text-white pr-8">
-                      <h3 className="text-lg font-semibold mb-1">{webtoon.title}</h3>
-                      <p className="text-sm opacity-90 mb-2">{webtoon.authors}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {firstRelease?.total_chapter || 0} Chap
-                        </span>
-                        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2 py-1">
-                          <div className="flex items-center gap-0.5">
-                            {[...Array(5)].map((_, i) => {
-                              const rating = webtoon?.rating ?? 0;
-                              const fillPercent = rating >= i + 1 ? 100 : rating >= i + 0.5 ? 50 : 0;
-                              return (
-                                <div key={i} className="relative w-3.5 h-3.5">
-                                  <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-white/40 fill-white/40" />
-                                  <div
-                                    className="absolute top-0 left-0 overflow-hidden"
-                                    style={{ width: `${fillPercent}%` }}
-                                  >
-                                    <Star className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <span className="text-xs sm:text-sm font-bold">
-                            {webtoon?.rating ?? 0}/5
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-
-            {visibleCount < filteredWebtoons.length && (
-              <div className="text-center text-gray-400 py-6">
-                Loading more...
-              </div>
-            )}
-          </>
+          filteredWebtoons.map((webtoon) => (
+            <WebtoonCard
+              key={webtoon.id}
+              id={webtoon.id}
+              title={webtoon.title}
+              authors={webtoon.authors}
+              rating={webtoon.rating}
+              totalChapters={webtoon?.releases?.[0]?.total_chapter || 0}
+              onClick={handleWebtoonClick}
+              showFavorite={isLogged}
+              isAddable={webtoon.addable}
+              releaseId={webtoon?.releases?.[0]?.id}
+              onFavoriteClick={handleFavorite}
+            />
+          ))
         )}
       </main>
-    </div>
+    </div >
   );
 }
