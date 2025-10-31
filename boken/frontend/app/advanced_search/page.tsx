@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Search, Heart, ChevronDown, ChevronUp, X, Filter, Star } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, X, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { verifyToken, useAuth, refreshToken, getCookie } from "@/utils/userAuth";
+import { verifyToken, useAuth, refreshToken } from "@/utils/userAuth";
+import WebtoonCard from "@/components/Webtoon_card";
 
 type Genre = {
   id: string;
@@ -20,7 +21,7 @@ type Webtoon = {
   authors: string;
   rating: number;
   releases: Release[];
-  addble: boolean;
+  addable: boolean;
 };
 
 type UserReleaseData = {
@@ -53,7 +54,6 @@ export default function AdvancedSearch() {
   const [favoriteLoading, setFavoriteLoading] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
 
-
   useEffect(() => {
     if (isLogged) {
       const checkLogin = async () => {
@@ -63,7 +63,7 @@ export default function AdvancedSearch() {
         }
       };
       checkLogin();
-    }  
+    }
   }, [isLogged, token]);
 
   // Fetch genres on mount
@@ -138,7 +138,6 @@ export default function AdvancedSearch() {
         throw new Error(`HTTP error! status: ${creation_response.status}`);
       }
 
-      // Mettre à jour l'état local du webtoon
       setSearchResults(prevResults =>
         prevResults.map(wt =>
           wt.id === webtoonId ? { ...wt, addble: false } : wt
@@ -196,7 +195,6 @@ export default function AdvancedSearch() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log(data)
         setSearchResults(data);
       } else {
         setSearchResults([]);
@@ -209,8 +207,6 @@ export default function AdvancedSearch() {
     }
   };
 
-
-  // Count active filters
   const activeFiltersCount = [
     webtoonTitle,
     authorName,
@@ -222,7 +218,6 @@ export default function AdvancedSearch() {
     selectedGenres.length > 0
   ].filter(Boolean).length;
 
-  // Gestion du scroll infini
   useEffect(() => {
     const handleScroll = () => {
       const bottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
@@ -235,10 +230,14 @@ export default function AdvancedSearch() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [visibleCount, searchResults.length]);
 
-  // Reset visible count on search
   useEffect(() => {
     setVisibleCount(10);
   }, [searchResults]);
+
+  const handlefilter = () => {
+    setShowFilters(!showFilters); 
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -251,7 +250,7 @@ export default function AdvancedSearch() {
             </h1>
           </div>
           <button
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={handlefilter}
             className="flex items-center gap-2 px-3 py-2 bg-indigo-100 text-indigo-600 rounded-lg font-medium hover:bg-indigo-200 transition-colors"
           >
             <Filter className="w-5 h-5" />
@@ -464,78 +463,19 @@ export default function AdvancedSearch() {
                   const isLoadingThis = favoriteLoading === firstRelease?.id;
 
                   return (
-                    <article
+                    <WebtoonCard
                       key={webtoon.id}
-                      className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer"
-                      onClick={() => handleWebtoonClick(webtoon.id)}
-                    >
-                      {isLogged && (
-                        <button
-                          className={`absolute top-4 right-4 transition-colors z-9 ${!webtoon.addble
-                              ? 'text-pink-500 cursor-default'
-                              : 'text-white hover:text-pink-500'
-                            } disabled:opacity-50`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!webtoon.addble) {
-                              alert("This webtoon is already in your library");
-                              return;
-                            }
-                            if (!firstRelease) {
-                              alert("This webtoon doesn't have a release yet!");
-                              return;
-                            }
-                            handleFavorite(webtoon.id, firstRelease.id);
-                          }}
-                          disabled={isLoadingThis || !firstRelease}
-                          aria-label={`${!webtoon.addble ? 'Already in library' : 'Add to library'}: ${webtoon.title}`}
-                        >
-                          {isLoadingThis ? (
-                            <div className="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Heart className={`w-6 h-6 ${!webtoon.addble ? 'fill-current' : ''}`} />
-                          )}
-                        </button>
-                      )}
-
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1 text-white pr-8">
-                          <h3 className="text-lg font-semibold mb-1">
-                            {webtoon.title}
-                          </h3>
-                          <p className="text-sm opacity-90 mb-2">
-                            {webtoon.authors}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {firstRelease?.total_chapter || 0} Chap
-                            </span>
-                            <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2 py-1">
-                              <div className="flex items-center gap-0.5">
-                                {[...Array(5)].map((_, i) => {
-                                  const rating = webtoon?.rating ?? 0;
-                                  const fillPercent = rating >= i + 1 ? 100 : rating >= i + 0.5 ? 50 : 0;
-                                  return (
-                                    <div key={i} className="relative w-3.5 h-3.5">
-                                      <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-white/40 fill-white/40" />
-                                      <div
-                                        className="absolute top-0 left-0 overflow-hidden"
-                                        style={{ width: `${fillPercent}%` }}
-                                      >
-                                        <Star className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <span className="text-xs sm:text-sm font-bold">
-                                {webtoon?.rating ?? 0}/5
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
+                      id={webtoon.id}
+                      title={webtoon.title}
+                      authors={webtoon.authors}
+                      rating={webtoon.rating}
+                      totalChapters={firstRelease?.total_chapter || 0}
+                      onClick={handleWebtoonClick}
+                      showFavorite={isLogged}
+                      isAddable={webtoon.addable}
+                      releaseId={firstRelease?.id}
+                      onFavoriteClick={handleFavorite}
+                    />
                   );
                 })}
 
