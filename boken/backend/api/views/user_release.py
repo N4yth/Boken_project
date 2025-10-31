@@ -3,8 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from api.permissions import IsReaderOrAdmin, DataAuthorization
 from api.models.user_release import UserRelease
-from api.serializers import UserReleaseSerializer, WebtoonSerializer
-from rest_framework.exceptions import ValidationError
+from api.serializers import UserReleaseSerializer
 from api.models.release import Release
 from api.models.user import User
 from rest_framework.decorators import action
@@ -26,12 +25,6 @@ class UserReleaseViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        existing = UserRelease.objects.filter(
-            user_id=self.request.user.id,
-            release_id=self.request.data["release_id"]
-        ).exists()
-        if existing :
-            raise ValidationError({"detail": "This release is already added by this user."})
         release = Release.objects.get(pk=self.request.data["release_id"])
         user = User.objects.get(pk=self.request.user.id)
         serializer.save(release_id=release, user_id=user)
