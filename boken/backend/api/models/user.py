@@ -5,7 +5,6 @@ from .base_model import BaseModel
 
 class UserManager(BaseUserManager):
     def create_user(self, email, username, password=None):
-        email = self.normalize_email(email)
         user = self.model(email=email, username=username, role="user")
         user.set_password(password)
         user.save(using=self._db)
@@ -19,8 +18,6 @@ class UserManager(BaseUserManager):
                 raise PermissionError("Authentification requise pour créer un compte admin")
             if created_by.role != "admin":
                 raise PermissionError("Seuls les administrateurs peuvent créer un compte admin")
-
-        email = self.normalize_email(email)
         admin = self.model(email=email, username=username, role="admin", is_staff=True)
         admin.set_password(password)
         admin.save(using=self._db)

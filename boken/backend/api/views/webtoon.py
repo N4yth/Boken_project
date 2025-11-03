@@ -5,10 +5,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from api.permissions import IsCreatorOrAdmin
 from api.models.webtoon import Webtoon
+from api.models.user_release import UserRelease
 from django_filters import rest_framework as filters
-from api.serializers import WebtoonSerializer
+from api.serializers import WebtoonSerializer, UserReleaseSerializer, WebtoonSearchSerializer
 from api.models.genre import Genre
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from rest_framework import generics
 
 class WebtoonViewSet(viewsets.ModelViewSet):
@@ -29,6 +30,17 @@ class WebtoonViewSet(viewsets.ModelViewSet):
         if "is_public" in self.request.data and (self.request.user.is_staff or getattr(self.request.user, "role", None) != "admin"):
             return Response({'error': "Vous n avez pas la permission d'executer cette action (is public: true)."}, status=status.HTTP_403_FORBIDDEN)
         serializer.save(add_by=self.request.user)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def check(self, request, pk=None):
+        try:
+            check_list = Webtoon.objects.filter(waiting_review = True)
+            serializer = WebtoonSerializer(check_list, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['patch'])
     def set_to_public(self, request, pk=None):
@@ -63,23 +75,60 @@ class WebtoonViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         user = request.user
         instance = self.get_object()
-        if user.is_authenticated and (user.is_staff or getattr(user, "role", None) == "admin"):
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        if instance.is_public:
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        if instance.add_by and instance.add_by.id == user.id:
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response({"detail": "Not allowed"}, status=status.HTTP_404_NOT_FOUND)
+        if not instance.is_public:
+            if not user.is_authenticated:
+                return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+            if not (user.is_staff or getattr(user, "role", None) == "admin" or instance.add_by_id == user.id):
+                return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+        if user.is_authenticated:
+            user_releases = UserRelease.objects.filter(
+                user_id=request.user.id,
+                release_id__webtoon_id__id=instance.id
+            ).first()
+            data["addable"] = user_releases is not None
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def get_library(self, request):
         try:
             library = Webtoon.objects.filter(release__userrelease__user_id = request.user.id)
             serializer = WebtoonSerializer(library, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            data = []
+            for webtoon in serializer.data:
+                UserR = UserRelease.objects.filter(
+                    user_id=request.user.id,
+                    release_id__webtoon_id__id=webtoon["id"]
+                ).first()
+                User_serializer = UserReleaseSerializer(UserR, many=False)
+                User_data = User_serializer.data
+                webtoon["UR_rating"] = User_data["rating"]
+                webtoon["UR_total_chapter"] = User_data["personal_total_chapter"]
+                data.append(webtoon)
+            return Response(data, status=status.HTTP_200_OK)
+        except PermissionError as e:
+            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def logged_user(self, request):
+        try:
+            webtoons = Webtoon.objects.all()
+            user_webtoon_ids = set(
+                str(wid)
+                for wid in UserRelease.objects.filter(user_id=request.user.id)
+                .values_list("release_id__webtoon_id__id", flat=True)
+            )
+            serializer = WebtoonSerializer(webtoons, many=True)
+            data = []
+            for webtoon_data in serializer.data:
+                webtoon_id = webtoon_data["id"]
+                webtoon_data["addable"] = webtoon_id not in user_webtoon_ids
+                data.append(webtoon_data)
+            return Response(data, status=status.HTTP_200_OK)
+
         except PermissionError as e:
             return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
@@ -112,8 +161,24 @@ class WebtoonFilter(filters.FilterSet):
                   'max_chapters', 'min_rating', 'max_rating', 'status']
 
 class WebtoonSearchView(generics.ListAPIView):
-    queryset = Webtoon.objects.all().prefetch_related('release', 'genres').distinct()
-    serializer_class = WebtoonSerializer
+    serializer_class = WebtoonSearchSerializer
     filter_backends = [filters.DjangoFilterBackend]
     filterset_class = WebtoonFilter
     permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        queryset = Webtoon.objects.all().prefetch_related('release', 'genres')
+        if self.request.user.is_authenticated:
+            user_has_webtoon = UserRelease.objects.filter(
+                user_id=self.request.user.id,
+                release_id__webtoon_id=OuterRef('pk')
+            )
+            queryset = queryset.annotate(
+                is_in_library=Exists(user_has_webtoon)
+            )
+        return queryset.distinct()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
