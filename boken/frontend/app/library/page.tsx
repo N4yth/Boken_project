@@ -1,10 +1,9 @@
 "use client";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { Search, Star, User, Users } from "lucide-react";
+import { Search, Plus, User, Users } from "lucide-react";
 import { useAuth, getCookie, refreshToken, verifyToken } from "@/utils/userAuth";
 import WebtoonCard from "@/components/Webtoon_card"
 import { useRouter } from "next/navigation";
-import Image from 'next/image'
 import '../globals.css';
 
 type Release = {
@@ -199,6 +198,13 @@ export default function Library() {
             />
           ))
         )}
+        {/* bouton add webtoon */}
+        <button
+          onClick={() => router.push("/library/add_webtoon")}
+          className="fixed bottom-24 right-10 bg-purple-300 hover:bg-purple-500 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
       </main>
     </div>
   );
