@@ -59,7 +59,7 @@ export default function LoginPage() {
       if (!mounted) return;
     
       
-      
+      useAuth()
       window.location.href = "/";
       return;
     } catch (error) {

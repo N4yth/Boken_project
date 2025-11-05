@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Languages, Edit2, Save, X, Star } from "lucide-react";
+import { Languages, Edit2, Save, X, Star, Trash } from "lucide-react";
 import { useAuth, getCookie, refreshToken, verifyToken } from "@/utils/userAuth";
 import { useRouter } from "next/navigation";
 import '../../globals.css';
@@ -183,12 +183,77 @@ export default function updateWebtoon() {
     }
   };
 
+  const handleRemove = useCallback(async () => {
+    if (confirm("Are you sure to remove this webtoon from your library ? (that will remove all the data that you have write on this webtoon)")) {
+      try {
+        console.log(userelease)
+        if (!mounted) return;
+        const response = await fetch(`http://127.0.0.1:8000/api/usereleases/${userelease?.id}/`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        alert("Webtoon remove successfully")
+        router.push("/library")
+        return;
+      } catch (err) {
+        alert("Failed to remove please try again or reload the page")
+        console.error("Failed to denied request:", err);
+      }
+    }
+  }, [router, token, userelease, mounted]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col">
       {/* Main Content */}
       <main className="flex-1 p-4 pb-24">
         {webtoon ? (
           <div className="max-w-4xl mx-auto">
+            {/* Edit/Save Buttons */}
+            <div className="flex items-center justify-end gap-2 px-4 py-1 mb-4">
+              {!isEditing ? (
+                <>
+                  <button
+                    onClick={handleEdit}
+                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white text-indigo-600 rounded-full hover:bg-indigo-50 transition-all shadow-lg text-sm sm:text-base whitespace-nowrap"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    <span className="font-semibold">Edit</span>
+                  </button>
+                  <button
+                    onClick={handleRemove}
+                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white text-red-600 rounded-full hover:bg-red-50 transition-all shadow-lg text-sm sm:text-base whitespace-nowrap"
+                  >
+                    <Trash className="w-4 h-4" />
+                    <span className="font-semibold">Remove</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleCancel}
+                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 transition-all text-sm sm:text-base whitespace-nowrap"
+                  >
+                    <X className="w-4 h-4" />
+                    <span className="font-semibold">Cancel</span>
+                  </button>
+                  <button
+                    onClick={handleSaveAll}
+                    disabled={isSaving}
+                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-white text-green-600 rounded-full hover:bg-green-50 transition-all shadow-lg disabled:opacity-50 text-sm sm:text-base whitespace-nowrap"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span className="font-semibold">{isSaving ? "Saving..." : "Save All"}</span>
+                  </button>
+                </>
+              )}
+            </div>
+
             {/* Hero Card */}
             <div className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
               {/* Header with gradient */}
@@ -219,37 +284,10 @@ export default function updateWebtoon() {
                     </h1>
                     <p className="text-indigo-100 text-xs sm:text-sm break-words">by {webtoon.authors}</p>
 
-                    
+
                   </div>
 
-                  {/* Edit/Save Buttons */}
-                  {!isEditing ? (
-                    <button
-                      onClick={handleEdit}
-                      className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white text-indigo-600 rounded-full hover:bg-indigo-50 transition-all shadow-lg text-sm sm:text-base whitespace-nowrap"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                      <span className="font-semibold">Edit</span>
-                    </button>
-                  ) : (
-                    <div className="flex gap-2 w-full sm:w-auto">
-                      <button
-                        onClick={handleCancel}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all text-sm sm:text-base"
-                      >
-                        <X className="w-4 h-4" />
-                        <span className="font-semibold">Cancel</span>
-                      </button>
-                      <button
-                        onClick={handleSaveAll}
-                        disabled={isSaving}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-white text-green-600 rounded-full hover:bg-green-50 transition-all shadow-lg disabled:opacity-50 text-sm sm:text-base"
-                      >
-                        <Save className="w-4 h-4" />
-                        <span className="font-semibold">{isSaving ? "Saving..." : "Save All"}</span>
-                      </button>
-                    </div>
-                  )}
+
                 </div>
 
                 {/* Status and Ratings Row */}

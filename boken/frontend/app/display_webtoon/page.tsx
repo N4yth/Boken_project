@@ -44,6 +44,7 @@ export default function displayWebtoon() {
   const router = useRouter();
   const { isLogged, token } = useAuth();
 
+
   useEffect(() => {
       if (isLogged) {
         const checkLogin = async () => {
@@ -59,23 +60,20 @@ export default function displayWebtoon() {
   useEffect(() => {
     const fetchWebtoons = async () => {
       try {
-        // Déclaration en dehors du if/else
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
         };
-
-        // Si connecté, on ajoute le token
-        if (isLogged && token) {
-          headers["Authorization"] = `Bearer ${token}`;
+        const token2 = getCookie("token");
+        if (token2 && token2 !== "" && token2 !== 'undefined') {
+          headers["Authorization"] = `Bearer ${token2}`;
         }
 
         const webtoonId = getCookie("webtoon");
         if (!webtoonId) {
-          console.warn("No webtoon cookie found");
           router.push('/');
           return;
         }
-
+        //console.log(headers)
         const response = await fetch(
           `http://127.0.0.1:8000/api/webtoons/${webtoonId}/`,
           {
@@ -84,12 +82,12 @@ export default function displayWebtoon() {
           }
         );
 
-        // Gestion des erreurs
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 403) {
           router.push("/");
           return;
-        }
-
+        } else if (response.status === 401) {
+          
+        } 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -118,7 +116,6 @@ export default function displayWebtoon() {
     setFavoriteLoading(true);
 
     try {
-      const token = getCookie('token');
       const requestData: UserReleaseData = {
         release_id: webtoon.releases[0].id,
         chapter_read: 0,
@@ -150,10 +147,10 @@ export default function displayWebtoon() {
     } finally {
       setFavoriteLoading(false);
     }
-  }, [isLogged, webtoon]);
+  }, [isLogged, token, webtoon]);
 
 
-
+  //console.log(getCookie('token'))
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col">
       <main className="flex-1 p-4 pb-24">
@@ -194,7 +191,7 @@ export default function displayWebtoon() {
                       <>
                         <Heart className="w-4 h-4" />
                         <span className="font-semibold">
-                          allready added
+                          already added
                         </span>
                       </>
                     )}
@@ -290,9 +287,9 @@ export default function displayWebtoon() {
                       <h3 className="text-sm font-semibold text-gray-700">Total Chapters</h3>
                     </div>
                     <div className="text-xl font-bold text-purple-900">
-                      {webtoon.releases[0]?.total_chapter === 0 && (
+                      {webtoon.releases[0]?.total_chapter && (
                         <div className="text-sm text-gray-400 italic font-normal">
-                          The number of chapters is not found or not out in this language
+                          The number of chapters is not found or not out in this language (0)
                         </div>
                       )}
                     </div>
