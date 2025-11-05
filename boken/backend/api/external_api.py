@@ -5,6 +5,7 @@ from api.models.webtoon import Webtoon
 from api.models.release import Release
 from api.models.genre import Genre
 from django.db import transaction
+from random import randint
 
 ANILIST_URL = "https://graphql.anilist.co"
 
@@ -85,8 +86,8 @@ def save_webtoon(entry, added_by=None):
         webtoon_id=webtoon,
         defaults={
             "description": description[:1000],
-            "language": "kor" if entry.get("countryOfOrigin") == "KR" else "chn",
-            "total_chapter": 0,
+            "language": "eng",
+            "total_chapter": randint(0,250),
         }
     )
 
