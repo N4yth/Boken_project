@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState} from "react";
+import { useEffect, useState } from "react";
 
 
 type AuthState = {
@@ -39,7 +39,6 @@ export async function refreshToken(): Promise<boolean> {
     });
 
     if (!response.ok) {
-      // Token invalide, on déconnecte l'utilisateur
       document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       document.cookie = "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       document.cookie = "refresh=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
@@ -54,7 +53,6 @@ export async function refreshToken(): Promise<boolean> {
   }
 };
 
-// Fonction pour vérifier si le token est valide
 export async function verifyToken(token: string): Promise<boolean> {
   try {
     const response = await fetch("http://127.0.0.1:8000/verify_token/", {
@@ -71,7 +69,6 @@ export async function verifyToken(token: string): Promise<boolean> {
   }
 };
 
-// Custom hook for authentication state
 export function useAuth(): AuthState & { mounted: boolean } {
   const [authState, setAuthState] = useState<AuthState>({
     isLogged: false,
@@ -86,60 +83,48 @@ export function useAuth(): AuthState & { mounted: boolean } {
       const token = getCookie('token');
       const username = getCookie('username');
       const refresh = getCookie('refresh');
-
-      // Si on a un token, on vérifie sa validité
       if (token && token !== "" && token !== "undefined") {
         const isValid = await verifyToken(token);
-        
+
         if (isValid) {
-          // Token valide
-          setAuthState({ 
-            isLogged: true, 
-            username: username || "", 
-            token: token, 
-            refresh: refresh || "" 
+          setAuthState({
+            isLogged: true,
+            username: username || "",
+            token: token,
+            refresh: refresh || ""
           });
         } else if (refresh) {
-          // Token expiré, on essaie de le rafraîchir
           const refreshed = await refreshToken();
           const newToken = getCookie('token');
-          
-          setAuthState({ 
-            isLogged: refreshed && !!newToken, 
-            username: refreshed ? (username || "") : "", 
-            token: refreshed ? (newToken || "") : "", 
-            refresh: refreshed ? (refresh || "") : "" 
+
+          setAuthState({
+            isLogged: refreshed && !!newToken,
+            username: refreshed ? (username || "") : "",
+            token: refreshed ? (newToken || "") : "",
+            refresh: refreshed ? (refresh || "") : ""
           });
         } else {
-          // Pas de refresh token, on déconnecte
-          setAuthState({ 
-            isLogged: false, 
-            username: "", 
-            token: "", 
-            refresh: "" 
+          setAuthState({
+            isLogged: false,
+            username: "",
+            token: "",
+            refresh: ""
           });
         }
       } else {
-        // Pas de token
-        setAuthState({ 
-          isLogged: false, 
-          username: "", 
-          token: "", 
-          refresh: "" 
+        setAuthState({
+          isLogged: false,
+          username: "",
+          token: "",
+          refresh: ""
         });
       }
-      
+
       setMounted(true);
     };
-
     checkAuth();
-
-    // Vérifier l'authentification toutes les 5 minutes
     const interval = setInterval(checkAuth, 300000);
-
-    // Vérifier lors du focus de la fenêtre
     window.addEventListener('focus', checkAuth);
-
     return () => {
       window.removeEventListener('focus', checkAuth);
       clearInterval(interval);
