@@ -22,7 +22,7 @@ class Webtoon(BaseModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='webtoons'
+        related_name='added_webtoons'
     )
     waiting_review = models.BooleanField(default=False)
     genres = models.ManyToManyField('Genre', related_name='webtoon', blank=False)
