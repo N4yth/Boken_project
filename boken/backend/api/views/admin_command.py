@@ -59,7 +59,7 @@ def create_from_anilist(max_count=150):
                 created = save_webtoon(entry, added_by=added_by)
                 if created:
                     progress["create"] += 1
-                    progress["pourcentage"]= f"{int(progress["create"] / max_count * 100)}%"
+                    progress["pourcentage"]= f"{int(progress['create'] / max_count * 100)}%"
                     if progress["create"] >= max_count:
                         progress["status"] = "finish"
                         return
