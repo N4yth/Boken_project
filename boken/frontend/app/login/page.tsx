@@ -188,10 +188,10 @@ export default function LoginPage() {
                 {/* Username */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Username
+                    Email
                   </label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
                       value={loginData.email}
