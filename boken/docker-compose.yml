@@ -1,7 +1,10 @@
+version: "3.9"
+
 services:
 
   db:
     image: postgres:16
+    restart: always
     environment:
       POSTGRES_DB: boken
       POSTGRES_USER: N4yt
@@ -13,9 +16,14 @@ services:
 
   backend:
     build: ./backend
+    restart: always
     volumes:
       - ./backend:/app
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "
+      python manage.py migrate &&
+      python manage.py runserver 0.0.0.0:8000
+      "
     ports:
       - "8000:8000"
     environment:
@@ -29,9 +37,11 @@ services:
 
   frontend:
     build: ./frontend
+    restart: always
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    command: npm run dev
     ports:
       - "3000:3000"
     environment:
