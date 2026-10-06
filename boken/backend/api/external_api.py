@@ -37,7 +37,7 @@ def fetch_page(page, per_page=50):
     response = requests.post(ANILIST_URL, json={"query": query, "variables": variables})
     
     if response.status_code != 200:
-        print(f"⚠️ Erreur AniList ({response.status_code}{response.text}), retry in 60s…")
+        print(f"Error AniList ({response.status_code}{response.text}), retry in 60s…")
         time.sleep(60)
         print(f"Request restart")
         return fetch_page(page, per_page)
@@ -57,7 +57,7 @@ def map_status(status_str):
 def save_webtoon(entry, added_by=None):
     title = entry["title"].get("english") or entry["title"].get("romaji") or "Unknown"
     authors = ", ".join([s["node"]["name"]["full"] for s in entry.get("staff", {}).get("edges", [])]) or "Unknown"
-    release_year = entry.get("startDate", {}).get("year") or 2000
+    release_year = entry.get("startDate", {}).get("year") or 0000
     status = map_status(entry.get("status"))
     genres = entry.get("genres", [])
     description = entry.get("description") or "No description available."
@@ -90,8 +90,6 @@ def save_webtoon(entry, added_by=None):
             "total_chapter": randint(0,250),
         }
     )
-
-    
     return created
 
 def is_webtoon(entry):

@@ -15,9 +15,9 @@ class UserManager(BaseUserManager):
 
         if admin_count > 0:
             if not created_by or not getattr(created_by, "is_authenticated", False):
-                raise PermissionError("Authentification requise pour créer un compte admin")
+                raise PermissionError("Authentification needed to create administrator")
             if created_by.role != "admin":
-                raise PermissionError("Seuls les administrateurs peuvent créer un compte admin")
+                raise PermissionError("Only administrator can create another administrator")
         admin = self.model(email=email, username=username, role="admin", is_staff=True)
         admin.set_password(password)
         admin.save(using=self._db)

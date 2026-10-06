@@ -32,7 +32,7 @@ class WebtoonViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         if "is_public" in self.request.data and (self.request.user.is_staff or getattr(self.request.user, "role", None) != "admin"):
-            raise PermissionDenied("Vous n'avez pas la permission de rendre ce webtoon public.")
+            raise PermissionDenied("Permission denied you cannot create a public webtoon without admin permission.")
         serializer.save(add_by=self.request.user)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
@@ -55,7 +55,7 @@ class WebtoonViewSet(viewsets.ModelViewSet):
 
         is_public = request.data.get('is_public', None)
         if is_public is None:
-            return Response({'error': 'Le champ "is_public" est requis.'},
+            return Response({'error': 'Wrong credentials, cannot set to public.'},
                 status=status.HTTP_400_BAD_REQUEST)
         
         webtoon.is_public = is_public

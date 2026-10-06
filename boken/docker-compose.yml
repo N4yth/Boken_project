@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_DB: boken
+      POSTGRES_USER: N4yt
+      POSTGRES_PASSWORD: 1234
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    restart: always
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "
+      python manage.py migrate &&
+      python manage.py runserver 0.0.0.0:8000
+      "
+    ports:
+      - "8000:8000"
+    environment:
+      DB_NAME: boken
+      DB_USER: N4yt
+      DB_PASSWORD: 1234
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    restart: always
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
