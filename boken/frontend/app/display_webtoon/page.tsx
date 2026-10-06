@@ -75,7 +75,7 @@ export default function displayWebtoon() {
         }
         //console.log(headers)
         const response = await fetch(
-          `http://127.0.0.1:8000/api/webtoons/${webtoonId}/`,
+          `http://127.0.0.1:8000/api/webtoon/${webtoonId}/`,
           {
             method: "GET",
             headers,
@@ -149,8 +149,6 @@ export default function displayWebtoon() {
     }
   }, [isLogged, token, webtoon]);
 
-
-  //console.log(getCookie('token'))
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col">
       <main className="flex-1 p-4 pb-24">

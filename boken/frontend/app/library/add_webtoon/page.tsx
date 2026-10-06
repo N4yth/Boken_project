@@ -89,7 +89,7 @@ export default function AddWebtoonPage() {
     };
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/webtoons/full_create/", {
+      const response = await fetch("http://127.0.0.1:8000/api/webtoon/full_create/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -146,7 +146,7 @@ export default function AddWebtoonPage() {
   useEffect(() => {
     const fetchGenres = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/genres/");
+        const response = await fetch("http://127.0.0.1:8000/api/genre/");
         if (response.ok) {
           const data = await response.json();
           setGenres(data);

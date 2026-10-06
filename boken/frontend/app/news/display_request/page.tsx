@@ -54,7 +54,7 @@ export default function updateWebtoon() {
     const fetchWebtoons = async () => {
       try {
         if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -89,13 +89,13 @@ export default function updateWebtoon() {
     if (confirm("are you sure to refuse this webtoon ?")) {
       try {
         if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/set_to_public/`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
           },
-          body: JSON.stringify({waiting_review: false})
+          body: JSON.stringify(getCookie('webtoon'))
         });
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -113,7 +113,7 @@ export default function updateWebtoon() {
     if (confirm("are you sure to accept this webtoon ?")) {
       try {
         if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",

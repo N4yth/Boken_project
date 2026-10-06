@@ -64,7 +64,7 @@ export default function Library() {
           return;
         }
 
-        const response = await fetch("http://127.0.0.1:8000/api/webtoons/get_library/", {
+        const response = await fetch("http://127.0.0.1:8000/api/webtoon/get_library/", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",

@@ -70,7 +70,7 @@ export default function AdvancedSearch() {
   useEffect(() => {
     const fetchGenres = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/genres/");
+        const response = await fetch("http://127.0.0.1:8000/api/genre/");
         if (response.ok) {
           const data = await response.json();
           setGenres(data);
@@ -186,7 +186,7 @@ export default function AdvancedSearch() {
       }
 
       const response = await fetch(
-        `http://127.0.0.1:8000/api/webtoons/search/?${params.toString()}`,
+        `http://127.0.0.1:8000/api/webtoon/search/?${params.toString()}`,
         {
           method: "GET",
           headers

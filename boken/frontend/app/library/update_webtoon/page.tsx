@@ -70,7 +70,7 @@ export default function updateWebtoon() {
     const fetchWebtoons = async () => {
       try {
         if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -120,7 +120,7 @@ export default function updateWebtoon() {
     if (confirm("Are you sure to ask for a review ?")) {
       try {
         if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoons/${getCookie('webtoon')}/`, {
+        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
