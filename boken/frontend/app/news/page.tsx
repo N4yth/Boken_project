@@ -49,7 +49,7 @@ export default function HomePage() {
     const fetchWebtoons = async () => {
       try {
         if (isLogged) {
-          const response = await fetch("http://127.0.0.1:8000/api/webtoons/check/", {
+          const response = await fetch("http://127.0.0.1:8000/api/webtoon/check/", {
             method: "GET",
             headers: {
               "Content-Type": "application/json",

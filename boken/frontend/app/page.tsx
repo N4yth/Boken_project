@@ -58,7 +58,7 @@ export default function HomePage() {
     const fetchWebtoons = async () => {
       try {
         if (isLogged) {
-          const response = await fetch("http://127.0.0.1:8000/api/webtoons/logged_user/", {
+          const response = await fetch("http://127.0.0.1:8000/api/webtoon/logged_user/", {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
@@ -75,7 +75,7 @@ export default function HomePage() {
           setWebtoons(data);
           setError(null);
         } else {
-          const response = await fetch("http://127.0.0.1:8000/api/webtoons/");
+          const response = await fetch("http://127.0.0.1:8000/api/webtoon/");
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
