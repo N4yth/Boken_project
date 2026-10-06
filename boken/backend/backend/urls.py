@@ -10,9 +10,9 @@ from api.views.user_release import UserReleaseViewSet
 from api.views.admin_command import update_all, create_new, get_progress
 
 router = routers.DefaultRouter()
-router.register(r'users', UserViewSet)
-router.register(r'webtoons', WebtoonViewSet)
-router.register(r'genres', GenreViewSet)
+router.register(r'user', UserViewSet)
+router.register(r'webtoon', WebtoonViewSet)
+router.register(r'genre', GenreViewSet)
 router.register(r'releases', ReleaseViewSet)
 router.register(r'usereleases', UserReleaseViewSet)
 
@@ -21,7 +21,7 @@ urlpatterns = [
     path('admin/create/', create_new, name='create_new'),
     path('admin/update/', get_progress, name='update'),
 
-    path('api/webtoons/search/', WebtoonSearchView.as_view(), name='webtoon-search'),
+    path('api/webtoon/search/', WebtoonSearchView.as_view(), name='webtoon-search'),
 
     path('api/', include(router.urls)),
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
