@@ -36,7 +36,6 @@ def fetch_page(page, per_page=50):
     response = requests.post(ANILIST_URL, json={"query": query, "variables": variables})
     
     if response.status_code != 200:
-        print(f"⚠️ Erreur AniList ({response.status_code}), retry dans 5s…")
         time.sleep(5)
         return fetch_page(page, per_page)
     
@@ -117,8 +116,6 @@ def save_webtoon(entry):
             "total_chapter": 0,
         }
     )
-
-    print(f"✅ {'Créé' if created else 'Déjà présent'} : {title}")
     return created
 
 
@@ -129,8 +126,6 @@ def update_all_from_anilist(max_count=100):
     page = 1
     has_next = True
     created_count = 0
-
-    print(f"🚀 Début de la mise à jour (max {max_count} webtoons)")
 
     while has_next and created_count < max_count:
         data = fetch_page(page)
@@ -143,10 +138,7 @@ def update_all_from_anilist(max_count=100):
                 if created:
                     created_count += 1
                     if created_count >= max_count:
-                        print(f"🛑 Limite atteinte ({max_count} webtoons)")
                         return
 
         page += 1
         time.sleep(0.5)
-
-    print(f"✅ Mise à jour terminée ({created_count} webtoons ajoutés)")
