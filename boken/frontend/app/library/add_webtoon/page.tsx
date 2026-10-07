@@ -13,7 +13,7 @@ type Genre = {
 export default function AddWebtoonPage() {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [language, setLanguage] = useState<string>("eng");
+  const [language, setLanguage] = useState<string>("en");
   const [title, setTitle] = useState("");
   const [authors, setAuthors] = useState("");
   const [chapters, setChapters] = useState("");
@@ -78,7 +78,7 @@ export default function AddWebtoonPage() {
       rating: 0,
       alt_title: altTitle,
       description,
-      language: "eng",
+      language,
       total_chapter: parseInt(chapters),
       // Personal information
       chapter_read: chapterRead ? parseInt(chapterRead) : 0,
@@ -277,11 +277,12 @@ export default function AddWebtoonPage() {
                 onChange={(e) => setLanguage(e.target.value)}
                 className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
               >
-                <option value="eng">English</option>
-                <option value="fra">French</option>
-                <option value="spa">Spanish</option>
-                <option value="jpn">Japanese</option>
-                <option value="kor">Korean</option>
+                <option value="en">English</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="ko">Korean</option>
+                <option value="zh">Chinese</option>
+                <option value="ja">Japanese</option>
               </select>
             </div>
           </div>

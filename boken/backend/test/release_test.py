@@ -27,7 +27,6 @@ class ReleasePermissionTests(APITestCase):
         # === Webtoons ===
         self.public_webtoon = Webtoon.objects.create(
             title="Public Toon",
-            authors="Author A",
             release_date="2020-01-01",
             status="Finished",
             is_public=True,
@@ -37,7 +36,6 @@ class ReleasePermissionTests(APITestCase):
 
         self.private_webtoon = Webtoon.objects.create(
             title="Private Toon",
-            authors="Author B",
             release_date="2021-01-01",
             status="Ongoing",
             is_public=False,
@@ -149,7 +147,7 @@ class ReleasePermissionTests(APITestCase):
             "webtoon_id": self.private_webtoon.id,
             "alt_title": "Hack Release",
             "description": "Attempt to modify",
-            "language": "jp",
+            "language": "ja",
             "total_chapters": 3,
         }
         res = self.client.post(self.releases_url, data, format="json")
@@ -162,7 +160,7 @@ class ReleasePermissionTests(APITestCase):
             "webtoon_id": self.private_webtoon.id,
             "alt_title": "Admin Release",
             "description": "Admin edition",
-            "language": "kr",
+            "language": "ko",
             "total_chapters": 20,
         }
         res = self.client.post(self.releases_url, data, format="json")

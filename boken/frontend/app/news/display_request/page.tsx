@@ -4,6 +4,7 @@ import { BookOpen, Languages, Calendar, CheckCircle, XCircle } from "lucide-reac
 import { useAuth, verifyToken, getCookie, refreshToken } from "@/utils/userAuth"
 import { useRouter } from "next/navigation";
 import '../../globals.css';
+import { Author, authorNames } from "@/utils/authors";
 
 type Release = {
   id: string;
@@ -15,7 +16,7 @@ type Release = {
 type Webtoon = {
   id: string;
   title: string;
-  authors: string;
+  authors: Author[];
   status: string;
   releases: Release[];
   genres: Genre[];
@@ -150,7 +151,7 @@ export default function updateWebtoon() {
                     <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">
                       {webtoon.title}
                     </h1>
-                    <p className="text-indigo-100 text-xs sm:text-sm break-words">by {webtoon.authors}</p>
+                    <p className="text-indigo-100 text-xs sm:text-sm break-words">by {authorNames(webtoon.authors)}</p>
                   </div>
                 </div>
 

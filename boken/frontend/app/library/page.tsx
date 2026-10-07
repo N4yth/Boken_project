@@ -5,6 +5,7 @@ import { useAuth, getCookie, refreshToken, verifyToken } from "@/utils/userAuth"
 import WebtoonCard from "@/components/Webtoon_card"
 import { useRouter } from "next/navigation";
 import '../globals.css';
+import { Author, authorNames } from "@/utils/authors";
 
 type Release = {
   id: string;
@@ -14,7 +15,7 @@ type Release = {
 type Webtoon = {
   id: string;
   title: string;
-  authors: string;
+  authors: Author[];
   rating: number;
   releases: Release[];
   UR_rating: number;
@@ -103,7 +104,7 @@ export default function Library() {
 
     return webtoons.filter((webtoon) =>
       webtoon.title.toLowerCase().includes(query) ||
-      webtoon.authors.toLowerCase().includes(query)
+      authorNames(webtoon.authors).toLowerCase().includes(query)
     );
   }, [webtoons, searchQuery]);
 
@@ -191,7 +192,7 @@ export default function Library() {
               key={webtoon.id}
               id={webtoon.id}
               title={webtoon.title}
-              authors={webtoon.authors}
+              authors={authorNames(webtoon.authors)}
               rating={switchData ? webtoon.rating : webtoon.UR_rating}
               totalChapters={switchData ? webtoon.releases?.[0]?.total_chapter : webtoon.UR_total_chapter}
               onClick={handleWebtoonClick}

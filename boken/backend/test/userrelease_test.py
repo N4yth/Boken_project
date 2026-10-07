@@ -32,7 +32,6 @@ class UserReleasePermissionTests(APITestCase):
         # === Webtoons ===
         self.webtoon1 = Webtoon.objects.create(
             title="Webtoon 1",
-            authors="Author A",
             release_date="2020-01-01",
             status="Finished",
             is_public=True,
@@ -42,7 +41,6 @@ class UserReleasePermissionTests(APITestCase):
 
         self.webtoon2 = Webtoon.objects.create(
             title="Webtoon 2",
-            authors="Author B",
             release_date="2021-01-01",
             status="Ongoing",
             is_public=True,

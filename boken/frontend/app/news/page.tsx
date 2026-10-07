@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { verifyToken, useAuth, refreshToken } from "@/utils/userAuth";
 import '../globals.css';
+import { Author, authorNames } from "@/utils/authors";
 
 
 type User = {
@@ -12,7 +13,7 @@ type User = {
 type Webtoon = {
   id: string;
   title: string;
-  authors: string;
+  authors: Author[];
   rating: number;
   addable: boolean;
   add_by: User;
@@ -87,7 +88,7 @@ export default function HomePage() {
 
     return webtoons.filter((webtoon) =>
       webtoon.title.toLowerCase().includes(query) ||
-      webtoon.authors.toLowerCase().includes(query)
+      authorNames(webtoon.authors).toLowerCase().includes(query)
     );
   }, [webtoons, searchQuery]);
 

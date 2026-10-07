@@ -4,6 +4,7 @@ import { Search, ChevronDown, ChevronUp, X, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { verifyToken, useAuth, refreshToken } from "@/utils/userAuth";
 import WebtoonCard from "@/components/Webtoon_card";
+import { Author, authorNames } from "@/utils/authors";
 
 type Genre = {
   id: string;
@@ -18,7 +19,7 @@ type Release = {
 type Webtoon = {
   id: string;
   title: string;
-  authors: string;
+  authors: Author[];
   rating: number;
   releases: Release[];
   addable: boolean;
@@ -467,7 +468,7 @@ export default function AdvancedSearch() {
                       key={webtoon.id}
                       id={webtoon.id}
                       title={webtoon.title}
-                      authors={webtoon.authors}
+                      authors={authorNames(webtoon.authors)}
                       rating={webtoon.rating}
                       totalChapters={firstRelease?.total_chapter || 0}
                       onClick={handleWebtoonClick}

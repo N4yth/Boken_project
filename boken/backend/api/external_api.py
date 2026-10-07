@@ -4,10 +4,21 @@ from datetime import date
 from api.models.webtoon import Webtoon
 from api.models.release import Release
 from api.models.genre import Genre
+from api.models.author import Author
 from django.db import transaction
-from random import randint
 
 ANILIST_URL = "https://graphql.anilist.co"
+
+# AniList countryOfOrigin -> Release.language (ISO 639-1)
+ORIGIN_LANGUAGE = {
+    "KR": "ko",
+    "CN": "zh",
+    "TW": "zh",
+    "JP": "ja",
+}
+
+# staff roles that count as authors (others are translators, editors, ...)
+AUTHOR_ROLES = ("story", "art", "original creator")
 
 def fetch_page(page, per_page=50):
     query = '''
@@ -20,14 +31,15 @@ def fetch_page(page, per_page=50):
           format_not: NOVEL
         ) {
           id
-          title { romaji english }
+          title { romaji english native }
           description(asHtml: false)
           startDate { year }
           status
           genres
           format
           countryOfOrigin
-          staff { edges { node { name { full } } } }
+          chapters
+          staff { edges { role node { name { full } } } }
           coverImage { large }
         }
       }
@@ -56,7 +68,7 @@ def map_status(status_str):
 @transaction.atomic
 def save_webtoon(entry, added_by=None):
     title = entry["title"].get("english") or entry["title"].get("romaji") or "Unknown"
-    authors = ", ".join([s["node"]["name"]["full"] for s in entry.get("staff", {}).get("edges", [])]) or "Unknown"
+    authors = get_authors(entry) or ["Unknown"]
     release_year = entry.get("startDate", {}).get("year") or 2000
     status = map_status(entry.get("status"))
     genres = entry.get("genres", [])
@@ -65,7 +77,6 @@ def save_webtoon(entry, added_by=None):
     webtoon, created = Webtoon.objects.update_or_create(
         title=title,
         defaults={
-            "authors": authors,
             "release_date": date(release_year, 1, 1),
             "status": status,
             "is_public": True,
@@ -80,17 +91,27 @@ def save_webtoon(entry, added_by=None):
         genre_obj, _ = Genre.objects.get_or_create(name=g)
         genre_objs.append(genre_obj)
     webtoon.genres.set(genre_objs)
+    webtoon.authors.set(Author.from_names(authors))
 
-    Release.objects.get_or_create(
-        alt_title=title,
+    # AniList only knows the original release: chapters is null while it is still releasing
+    Release.objects.update_or_create(
         webtoon_id=webtoon,
+        language=ORIGIN_LANGUAGE.get(entry.get("countryOfOrigin"), "ko"),
         defaults={
+            "alt_title": entry["title"].get("native") or title,
             "description": description[:1000],
-            "language": "eng",
-            "total_chapter": randint(0,250),
+            "total_chapter": entry.get("chapters") or 0,
         }
     )
     return created
+
+def get_authors(entry):
+    names = []
+    for edge in (entry.get("staff") or {}).get("edges", []):
+        role = (edge.get("role") or "").lower()
+        if any(r in role for r in AUTHOR_ROLES):
+            names.append(edge["node"]["name"]["full"])
+    return names
 
 def is_webtoon(entry):
     origin = entry.get("countryOfOrigin", "")

@@ -46,7 +46,6 @@ class GlobalAPITests(APITestCase):
         self.public_webtoon = None
         self.public_webtoon = Webtoon.objects.create(
             title="Public Webtoon",
-            authors="Author A",
             release_date="2020-01-01",
             status="in progress",
             is_public=True,
@@ -58,7 +57,6 @@ class GlobalAPITests(APITestCase):
 
         self.private_webtoon = Webtoon.objects.create(
             title="Private Webtoon",
-            authors="Author B",
             release_date="2021-01-01",
             status="finish",
             is_public=False,
@@ -288,7 +286,7 @@ class GlobalAPITests(APITestCase):
             "webtoon_id": self.private_webtoon.id,
             "alt_title": "Hack Release",
             "description": "Unauthorized",
-            "language": "jp",
+            "language": "ja",
             "total_chapter": 20,
         }
         res = self.client.post(self.releases_url, data, format="json")
@@ -301,7 +299,7 @@ class GlobalAPITests(APITestCase):
             "webtoon_id": self.private_webtoon.id,
             "alt_title": "Admin Release JP",
             "description": "Japanese version",
-            "language": "jp",
+            "language": "ja",
             "total_chapter": 40,
         }
         res = self.client.post(self.releases_url, data, format="json")

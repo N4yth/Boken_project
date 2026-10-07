@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models.user import User
 from .models.webtoon import Webtoon
 from .models.genre import Genre
+from .models.author import Author
 from .models.release import Release
 from .models.user_release import UserRelease
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -31,6 +32,30 @@ class UserSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data, password=password)
         return user
 
+class AuthorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Author
+        fields = ['id', 'name']
+        read_only_fields = ['id']
+
+
+class AuthorNamesField(serializers.Field):
+    """Reads as [{id, name}], writes from a list of names or a "a, b" string."""
+
+    def to_representation(self, value):
+        return AuthorSerializer(value.all(), many=True).data
+
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            data = data.split(",")
+        if not isinstance(data, (list, tuple)):
+            raise serializers.ValidationError("Expected a list of author names or a comma separated string.")
+        names = [str(name).strip() for name in data if str(name).strip()]
+        if not names:
+            raise serializers.ValidationError("At least one author is required.")
+        return names
+
+
 class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
@@ -40,6 +65,7 @@ class GenreSerializer(serializers.ModelSerializer):
 
 class WebtoonSerializer(serializers.ModelSerializer):
     add_by = UserSerializer(read_only=True)
+    authors = AuthorNamesField(required=False)
     genres = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Genre.objects.all(),
@@ -58,6 +84,19 @@ class WebtoonSerializer(serializers.ModelSerializer):
         rep["releases"] = ReleaseSerializer(instance.release.all(), many=True).data
         return rep
 
+    def create(self, validated_data):
+        names = validated_data.pop('authors', [])
+        webtoon = super().create(validated_data)
+        webtoon.authors.set(Author.from_names(names))
+        return webtoon
+
+    def update(self, instance, validated_data):
+        names = validated_data.pop('authors', None)
+        webtoon = super().update(instance, validated_data)
+        if names is not None:
+            webtoon.authors.set(Author.from_names(names))
+        return webtoon
+
 class ReleaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Release
@@ -74,6 +113,7 @@ class UserReleaseSerializer(serializers.ModelSerializer):
 
 class WebtoonSearchSerializer(serializers.ModelSerializer):
     releases = ReleaseSerializer(many=True, read_only=True, source='release')
+    authors = AuthorNamesField(read_only=True)
     addable = serializers.SerializerMethodField()
     
     class Meta:

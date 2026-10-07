@@ -12,7 +12,7 @@ class Webtoon(BaseModel):
     )
 
     title = models.CharField(max_length=255, unique=True, null=False, blank=False)
-    authors = models.CharField(max_length=255, null=False, blank=False)
+    authors = models.ManyToManyField('Author', related_name='webtoons', blank=True)
     release_date = models.DateField(default='2000-01-01', null=False, blank=False)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, null=False, blank=False)
     is_public = models.BooleanField(default=False)

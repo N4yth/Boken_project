@@ -35,7 +35,6 @@ class WebtoonViewSetTestCase(APITestCase):
         # Création des webtoons publics
         self.public_webtoon = Webtoon.objects.create(
             title='Public Webtoon',
-            authors='Author 1',
             release_date=date(2020, 1, 1),
             status='in progress',
             is_public=True,
@@ -46,7 +45,6 @@ class WebtoonViewSetTestCase(APITestCase):
         # Création des webtoons privés
         self.private_webtoon_creator1 = Webtoon.objects.create(
             title='Private Webtoon Creator1',
-            authors='Author 2',
             release_date=date(2021, 1, 1),
             status='finish',
             is_public=False,
@@ -56,7 +54,6 @@ class WebtoonViewSetTestCase(APITestCase):
         
         self.private_webtoon_creator2 = Webtoon.objects.create(
             title='Private Webtoon Creator2',
-            authors='Author 3',
             release_date=date(2022, 1, 1),
             status='pause',
             is_public=False,

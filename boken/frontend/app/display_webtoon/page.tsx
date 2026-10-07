@@ -4,6 +4,7 @@ import { Heart, Languages, Star, BookOpen, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { verifyToken, useAuth, refreshToken, getCookie } from "@/utils/userAuth";
 import '../globals.css';
+import { Author, authorNames } from "@/utils/authors";
 
 type Release = {
   id: string;
@@ -24,7 +25,7 @@ type UserReleaseData = {
 type Webtoon = {
   id: string;
   title: string;
-  authors: string;
+  authors: Author[];
   status: string;
   rating: number;
   addable: boolean;
@@ -163,7 +164,7 @@ export default function displayWebtoon() {
                     <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">
                       {webtoon.title}
                     </h1>
-                    <p className="text-indigo-100 text-xs sm:text-sm break-words">by {webtoon.authors}</p>
+                    <p className="text-indigo-100 text-xs sm:text-sm break-words">by {authorNames(webtoon.authors)}</p>
                   </div>
 
                   {/* Add to Library Button */}

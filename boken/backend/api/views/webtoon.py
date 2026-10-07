@@ -10,6 +10,7 @@ from api.models.user_release import UserRelease
 from django_filters import rest_framework as filters
 from api.serializers import WebtoonSerializer, UserReleaseSerializer, WebtoonSearchSerializer
 from api.models.genre import Genre
+from api.models.author import Author
 from django.db.models import Exists, OuterRef, Q
 from rest_framework import generics
 from api.models.release import Release
@@ -139,7 +140,6 @@ class WebtoonViewSet(viewsets.ModelViewSet):
 
                 webtoon = Webtoon.objects.create(
                     title=data.get('title'),
-                    authors=data.get('authors'),
                     release_date=data.get('release_date'),
                     status=data.get('status'),
                     waiting_review=data.get('waiting_review'),
@@ -147,14 +147,18 @@ class WebtoonViewSet(viewsets.ModelViewSet):
                 )
                 webtoon.add_by = request.user
                 webtoon.genres.set(data.get('genres', []))
+                webtoon.authors.set(Author.from_names(data.get('authors')))
                 webtoon.save()
-                release = Release.objects.create(
+                release = Release(
                     alt_title=data.get('alt_title'),
                     description=data.get('description'),
                     language=data.get('language'),
                     total_chapter=data.get('total_chapter'),
                     webtoon_id=webtoon
                 )
+                # objects.create() skips choices validation, so an unknown language would be stored
+                release.full_clean()
+                release.save()
                 UserRelease.objects.create(
                     personal_total_chapter=data.get('personal_total_chapter'),
                     chapter_read=data.get('chapter_read'),
@@ -173,7 +177,7 @@ class WebtoonViewSet(viewsets.ModelViewSet):
 
 class WebtoonFilter(filters.FilterSet):
     title = filters.CharFilter(field_name='title', lookup_expr='icontains')
-    author = filters.CharFilter(field_name='authors', lookup_expr='icontains')
+    author = filters.CharFilter(field_name='authors__name', lookup_expr='icontains')
     genres = filters.ModelMultipleChoiceFilter(
         field_name='genres__id',
         to_field_name='id',
@@ -206,7 +210,7 @@ class WebtoonSearchView(generics.ListAPIView):
         visible = Q(is_public=True)
         if self.request.user.is_authenticated:
             visible |= Q(add_by_id=self.request.user.id)
-        queryset = Webtoon.objects.filter(visible).prefetch_related('release', 'genres')
+        queryset = Webtoon.objects.filter(visible).prefetch_related('release', 'genres', 'authors')
         if self.request.user.is_authenticated:
             user_has_webtoon = UserRelease.objects.filter(
                 user_id=self.request.user.id,
