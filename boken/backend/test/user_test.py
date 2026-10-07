@@ -161,3 +161,21 @@ class UserPermissionTests(APITestCase):
         other_detail_url = f"{url}{self.admin.id}/"
         other_response = self.client.get(other_detail_url)
         self.assertIn(other_response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+
+class VerifyTokenTests(APITestCase):
+    def setUp(self):
+        user = User.objects.create_user(email="v@test.com", username="v", password="1234")
+        self.token = str(RefreshToken.for_user(user).access_token)
+
+    def test_token_in_body(self):
+        res = self.client.post("/verify_token/", {"token": self.token}, format="json")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_token_in_authorization_header(self):
+        res = self.client.post("/verify_token/", HTTP_AUTHORIZATION=f"Bearer {self.token}")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_missing_or_bad_token(self):
+        self.assertEqual(self.client.post("/verify_token/").status_code, status.HTTP_401_UNAUTHORIZED)
+        res = self.client.post("/verify_token/", HTTP_AUTHORIZATION="Bearer nope")
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
