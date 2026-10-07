@@ -1,6 +1,8 @@
-import { Star, Heart } from "lucide-react";
-import Image from 'next/image';
-import React from 'react';
+"use client";
+import { useRef, type MouseEvent } from "react";
+import { Plus, Check } from "lucide-react";
+import Cover from "./Cover";
+import { RatingBadge } from "./Rating";
 
 type WebtoonCardProps = {
   id: string;
@@ -8,10 +10,10 @@ type WebtoonCardProps = {
   authors: string;
   rating: number;
   totalChapters: number;
-  imageUrl?: string;
   onClick?: (id: string) => void;
   className?: string;
-  // Props pour le système de favoris
+  index?: number;
+  meta?: string;
   showFavorite?: boolean;
   isAddable?: boolean;
   releaseId?: string;
@@ -25,134 +27,78 @@ export default function WebtoonCard({
   authors,
   rating,
   totalChapters,
-  imageUrl = "/images/NotFound.jpg",
   onClick,
   className = "",
+  index = 0,
+  meta,
   showFavorite = false,
   isAddable = true,
   releaseId,
   onFavoriteClick,
-  isFavoriteLoading = false
+  isFavoriteLoading = false,
 }: WebtoonCardProps) {
-  const handleClick = () => {
-    if (onClick) {
-      onClick(id);
-    }
-  };
+  // Only play the stamp animation when the title gets added during this visit
+  const startedAddable = useRef(isAddable);
 
-  const [isAnimating, setIsAnimating] = React.useState(false);
-
-  const handleFavoriteClick = (e: React.MouseEvent) => {
+  const handleAdd = (e: MouseEvent) => {
     e.stopPropagation();
-    
-    if (!isAddable) {
-      return;
-    }
-    
-    if (!releaseId) {
-      alert("This webtoon doesn't have a release yet!");
-      return;
-    }
-    
-    if (onFavoriteClick) {
-      setIsAnimating(true);
-      onFavoriteClick(id, releaseId);
-      
-      // Reset animation after completion
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 600);
-    }
+    if (!isAddable || !releaseId || !onFavoriteClick) return;
+    onFavoriteClick(id, releaseId);
   };
+
+  const inLibrary = !isAddable;
 
   return (
     <article
-      className={`bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 rounded-2xl shadow-md p-4 relative hover:shadow-lg transition-shadow cursor-pointer flex items-center gap-4 ${className}`}
-      onClick={handleClick}
+      className={`group animate-rise ${className}`}
+      style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
     >
-      {/* Bouton favori */}
-      {showFavorite && (
+      <div className="relative">
         <button
-          className={`absolute top-4 right-4 z-9 transition-all duration-200 ${
-            !isAddable 
-              ? 'cursor-default opacity-100'
-              : 'cursor-pointer hover:scale-110 active:scale-95' 
-          } ${isAnimating ? 'animate-ping-once' : ''}`}
-          onClick={handleFavoriteClick}
-          disabled={isFavoriteLoading || !releaseId}
-          aria-label={`${!isAddable ? 'Already in library' : 'Add to library'}: ${title}`}
+          type="button"
+          onClick={() => onClick?.(id)}
+          className="block w-full rounded-[10px] text-left transition-transform duration-300 ease-out group-hover:-translate-y-1"
+          aria-label={`Open ${title}`}
         >
-          {isFavoriteLoading ? (
-            <div className="w-6 h-6 border-2 border-pink-400 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Heart
-              className={`w-6 h-6 transition-all duration-300 ${
-                !isAddable
-                  ? 'fill-none stroke-white stroke-2 opacity-50'
-                  : 'fill-pink-500 stroke-2 stroke-pink-500 hover:stroke-pink-600'
-              }`}
-            />
-          )}
-        </button>
-      )}
-
-      {/* Image + bandeau "Not found" */}
-      <div className="flex-shrink-0 w-24 h-28 rounded-lg overflow-hidden bg-gray-200 flex flex-col items-center">
-        <div className="w-24 h-24 overflow-hidden rounded-t-lg">
-          <Image
-            src={imageUrl}
-            alt={title || "Webtoon cover"}
-            width={96}
-            height={96}
-            className="w-full h-full object-cover"
-            priority
+          <Cover
+            title={title}
+            className="shadow-[0_1px_0_rgb(var(--line)),0_14px_28px_-18px_rgb(var(--ink)/0.55)]"
           />
-        </div>
-        {imageUrl === "/images/NotFound.jpg" && (
-          <div className="w-full text-center bg-gray-800 text-gray-200 text-xs italic py-1 rounded-b-lg">
-            image Not Found
-          </div>
+        </button>
+
+        {showFavorite && (
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={inLibrary || isFavoriteLoading || !releaseId}
+            title={!releaseId ? "No release yet" : inLibrary ? "In your library" : "Add to library"}
+            aria-label={inLibrary ? `${title} is in your library` : `Add ${title} to library`}
+            className={`absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full border shadow-sm transition-all ${
+              inLibrary
+                ? "border-transparent bg-jade text-sheet"
+                : "border-line bg-sheet text-ink hover:scale-105 hover:bg-ink hover:text-paper disabled:opacity-50"
+            }`}
+          >
+            {inLibrary ? (
+              <Check className={`h-4 w-4 ${startedAddable.current ? "animate-pop" : ""}`} strokeWidth={2.5} />
+            ) : (
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
+            )}
+          </button>
         )}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 text-white pr-8">
-        <h3 className="text-lg font-semibold mb-1">
+      <button type="button" onClick={() => onClick?.(id)} className="mt-3 block w-full text-left">
+        <h3 className="line-clamp-2 text-[15px] font-semibold leading-snug decoration-seal decoration-2 underline-offset-4 group-hover:underline">
           {title}
         </h3>
-        <p className="text-sm opacity-90 mb-2">
-          {authors}
-        </p>
-        <div className="flex items-center mb-2">
-          <span className="text-sm font-medium">
-            {totalChapters} Chap
-          </span>
+        <p className="mt-0.5 truncate text-[13px] text-muted">{authors}</p>
+        <div className="mt-2 flex items-center gap-3 text-muted">
+          <RatingBadge value={rating} className="text-ink" />
+          <span className="font-mono text-xs tabular-nums">{totalChapters ?? 0} ch</span>
+          {meta && <span className="truncate font-mono text-xs">{meta}</span>}
         </div>
-
-        {/* Rating */}
-        <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2 py-1 w-fit">
-          <div className="flex items-center gap-0.5">
-            {[...Array(5)].map((_, i) => {
-              const fillPercent = rating >= i + 1 ? 100 : rating >= i + 0.5 ? 50 : 0;
-
-              return (
-                <div key={i} className="relative w-3.5 h-3.5">
-                  <Star className="absolute top-0 left-0 w-3.5 h-3.5 text-white/40 fill-white/40" />
-                  <div
-                    className="absolute top-0 left-0 overflow-hidden"
-                    style={{ width: `${fillPercent}%` }}
-                  >
-                    <Star className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <span className="text-xs sm:text-sm font-bold">
-            {rating}/5
-          </span>
-        </div>
-      </div>
+      </button>
     </article>
   );
 }
