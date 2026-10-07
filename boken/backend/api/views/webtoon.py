@@ -3,12 +3,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework import serializers
 from api.permissions import IsCreatorOrAdmin, IsAdmin, is_admin
 from api.models.webtoon import Webtoon
 from api.models.user_release import UserRelease
 from django_filters import rest_framework as filters
-from api.serializers import WebtoonSerializer, UserReleaseSerializer, WebtoonSearchSerializer
+from api.serializers import WebtoonSerializer, UserReleaseSerializer, WebtoonSearchSerializer, ReleaseSerializer
 from api.models.genre import Genre
 from api.models.author import Author
 from django.db.models import Exists, OuterRef, Q
@@ -147,45 +148,76 @@ class WebtoonViewSet(viewsets.ModelViewSet):
         
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def full_create(self, request):
+        """
+        Create a webtoon, its releases and the user's library entry in one call.
+
+        Releases are sent as a list: "releases": [{"language", "alt_title", "description", "total_chapter"}, ...]
+        The old format (one release given with flat alt_title/description/language/total_chapter) still works.
+        "reading_language" chooses the release the library entry points to (first release by default).
+        Nothing is created if any part is invalid.
+        """
+        data = request.data
+        releases_data = data.get('releases')
+        if releases_data is None:
+            releases_data = [{
+                key: data.get(key)
+                for key in ('alt_title', 'description', 'language', 'total_chapter')
+                if data.get(key) is not None
+            }]
+        if not isinstance(releases_data, list) or not releases_data or not all(isinstance(r, dict) for r in releases_data):
+            return Response({"error": "At least one release is required.", "details": {"releases": ["At least one release is required."]}},
+                            status=status.HTTP_400_BAD_REQUEST)
+        languages = [r.get('language') for r in releases_data]
+        if len(set(languages)) != len(languages):
+            return Response({"error": "Each language can only be used once.", "details": {"releases": ["Each language can only be used once."]}},
+                            status=status.HTTP_400_BAD_REQUEST)
+        reading_language = data.get('reading_language') or languages[0]
+        if reading_language not in languages:
+            return Response({"error": "reading_language must be one of the release languages.",
+                             "details": {"reading_language": ["Must be one of the release languages."]}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         try:
             with transaction.atomic():
-                data = request.data
+                webtoon_serializer = WebtoonSerializer(data={
+                    'title': data.get('title'),
+                    'authors': data.get('authors'),
+                    'genres': data.get('genres', []),
+                    'status': data.get('status'),
+                    'rating': data.get('rating') or 0,
+                    'waiting_review': bool(data.get('waiting_review', False)),
+                }, context={'request': request})
+                webtoon_serializer.is_valid(raise_exception=True)
+                release_date = serializers.DateField().to_internal_value(data.get('release_date')) if data.get('release_date') else None
+                extra = {'release_date': release_date} if release_date else {}
+                # is_public is not taken from the request: only an admin review makes a webtoon public
+                webtoon = webtoon_serializer.save(add_by=request.user, **extra)
 
-                webtoon = Webtoon.objects.create(
-                    title=data.get('title'),
-                    release_date=data.get('release_date'),
-                    status=data.get('status'),
-                    waiting_review=data.get('waiting_review'),
-                    rating=data.get('rating')
-                )
-                webtoon.add_by = request.user
-                webtoon.genres.set(data.get('genres', []))
-                webtoon.authors.set(Author.from_names(data.get('authors')))
-                webtoon.save()
-                release = Release(
-                    alt_title=data.get('alt_title'),
-                    description=data.get('description'),
-                    language=data.get('language'),
-                    total_chapter=data.get('total_chapter'),
-                    webtoon_id=webtoon
-                )
-                # objects.create() skips choices validation, so an unknown language would be stored
-                release.full_clean()
-                release.save()
-                UserRelease.objects.create(
-                    personal_total_chapter=data.get('personal_total_chapter'),
-                    chapter_read=data.get('chapter_read'),
-                    note=data.get('note'),
-                    rating=data.get('personal_rating'),
-                    reading_status=data.get('reading_status'),
-                    release_id=release,
-                    user_id=request.user
-                )
-                return Response({"webtoon_id": webtoon.id}, status=status.HTTP_200_OK)
-        except PermissionError as e:
-            return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                releases = {}
+                for release_data in releases_data:
+                    release_serializer = ReleaseSerializer(data={**release_data, 'webtoon_id': webtoon.pk})
+                    release_serializer.is_valid(raise_exception=True)
+                    release = release_serializer.save(add_by=request.user, waiting_review=False)
+                    releases[release.language] = release
+
+                reading_release = releases[reading_language]
+                user_release_serializer = UserReleaseSerializer(data={
+                    'release_id': reading_release.pk,
+                    'personal_total_chapter': data.get('personal_total_chapter') or reading_release.total_chapter,
+                    'chapter_read': data.get('chapter_read') or 0,
+                    'note': data.get('note') or "",
+                    'rating': data.get('personal_rating') or 0,
+                    'reading_status': data.get('reading_status') or "to read",
+                })
+                user_release_serializer.is_valid(raise_exception=True)
+                user_release_serializer.save(user_id=request.user)
+        except ValidationError as e:
+            return Response({"error": str(e.detail), "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "webtoon_id": webtoon.id,
+            "release_ids": {language: release.id for language, release in releases.items()},
+        }, status=status.HTTP_200_OK)
 
 
 class WebtoonFilter(filters.FilterSet):
