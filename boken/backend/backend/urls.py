@@ -8,6 +8,7 @@ from api.views.genre import GenreViewSet
 from api.views.release import ReleaseViewSet
 from api.views.user_release import UserReleaseViewSet
 from api.views.admin_command import update_all, create_new, get_progress
+from api.views.admin_dashboard import dashboard
 
 router = routers.DefaultRouter()
 router.register(r'user', UserViewSet)
@@ -20,6 +21,7 @@ urlpatterns = [
     path('admin/update_all/', update_all, name='update_all'),
     path('admin/create/', create_new, name='create_new'),
     path('admin/update/', get_progress, name='update'),
+    path('admin/dashboard/', dashboard, name='admin_dashboard'),
 
     path('api/webtoon/search/', WebtoonSearchView.as_view(), name='webtoon-search'),
 
