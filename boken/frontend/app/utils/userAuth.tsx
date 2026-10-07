@@ -1,6 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { API_URL } from "@/lib/api";
+import { clearCookie, getCookie, setCookie } from "@/lib/cookies";
 
+export { getCookie };
 
 type AuthState = {
   isLogged: boolean;
@@ -9,127 +12,113 @@ type AuthState = {
   refresh: string;
 };
 
+type AuthContextValue = AuthState & {
+  mounted: boolean;
+  logout: () => void;
+};
 
-export function getCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
+const LOGGED_OUT: AuthState = { isLogged: false, token: "", username: "", refresh: "" };
 
-  const cookies: Record<string, string> = {};
-  document.cookie.split('; ').forEach(cookie => {
-    const [key, value] = cookie.split('=');
-    if (key && value) {
-      cookies[key] = decodeURIComponent(value);
-    }
-  });
-  return cookies[name];
+export function clearSession() {
+  clearCookie("token");
+  clearCookie("refresh");
+  clearCookie("username");
 }
 
+export function saveSession(access: string, refresh: string, username: string) {
+  setCookie("token", access, 900);
+  setCookie("refresh", refresh, 86400);
+  setCookie("username", username, 86400);
+}
 
 export async function refreshToken(): Promise<boolean> {
   try {
-    const refresh = getCookie('refresh');
-    if (!refresh) {
-      return false;
-    }
-    const response = await fetch("http://127.0.0.1:8000/refresh/", {
+    const refresh = getCookie("refresh");
+    if (!refresh) return false;
+
+    const response = await fetch(`${API_URL}/refresh/`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh }),
     });
 
     if (!response.ok) {
-      document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      document.cookie = "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      document.cookie = "refresh=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      clearSession();
       return false;
     }
     const data = await response.json();
-    document.cookie = `token=${data.access}; path=/; max-age=900; sameSite=strict;`;
+    setCookie("token", data.access, 900);
     return true;
   } catch (error) {
     console.error("refresh error:", error);
     return false;
   }
-};
+}
 
 export async function verifyToken(token: string): Promise<boolean> {
+  if (!token) return false;
   try {
-    const response = await fetch("http://127.0.0.1:8000/verify_token/", {
+    const response = await fetch(`${API_URL}/verify_token/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
     return response.ok;
   } catch (error) {
-    console.log("Token verification error:", error);
+    console.error("Token verification error:", error);
     return false;
   }
-};
+}
 
-export function useAuth(): AuthState & { mounted: boolean } {
-  const [authState, setAuthState] = useState<AuthState>({
-    isLogged: false,
-    username: "",
-    token: "",
-    refresh: ""
-  });
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>(LOGGED_OUT);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const token = getCookie('token');
-      const username = getCookie('username');
-      const refresh = getCookie('refresh');
-      if (token && token !== "" && token !== "undefined") {
-        const isValid = await verifyToken(token);
+  const checkAuth = useCallback(async () => {
+    const token = getCookie("token");
+    const refresh = getCookie("refresh");
+    const username = getCookie("username") || "";
 
-        if (isValid) {
-          setAuthState({
-            isLogged: true,
-            username: username || "",
-            token: token,
-            refresh: refresh || ""
-          });
-        } else if (refresh) {
-          const refreshed = await refreshToken();
-          const newToken = getCookie('token');
+    let next = LOGGED_OUT;
+    if (token && (await verifyToken(token))) {
+      next = { isLogged: true, token, username, refresh: refresh || "" };
+    } else if (refresh && (await refreshToken())) {
+      const fresh = getCookie("token") || "";
+      next = { isLogged: !!fresh, token: fresh, username, refresh };
+    }
 
-          setAuthState({
-            isLogged: refreshed && !!newToken,
-            username: refreshed ? (username || "") : "",
-            token: refreshed ? (newToken || "") : "",
-            refresh: refreshed ? (refresh || "") : ""
-          });
-        } else {
-          setAuthState({
-            isLogged: false,
-            username: "",
-            token: "",
-            refresh: ""
-          });
-        }
-      } else {
-        setAuthState({
-          isLogged: false,
-          username: "",
-          token: "",
-          refresh: ""
-        });
-      }
-
-      setMounted(true);
-    };
-    checkAuth();
-    const interval = setInterval(checkAuth, 300000);
-    window.addEventListener('focus', checkAuth);
-    return () => {
-      window.removeEventListener('focus', checkAuth);
-      clearInterval(interval);
-    };
+    setState((prev) =>
+      prev.isLogged === next.isLogged && prev.token === next.token && prev.username === next.username
+        ? prev
+        : next
+    );
+    setMounted(true);
   }, []);
 
-  return { ...authState, mounted };
+  useEffect(() => {
+    checkAuth();
+    const interval = setInterval(checkAuth, 240000);
+    window.addEventListener("focus", checkAuth);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", checkAuth);
+    };
+  }, [checkAuth]);
+
+  const logout = useCallback(() => {
+    clearSession();
+    setState(LOGGED_OUT);
+  }, []);
+
+  return <AuthContext.Provider value={{ ...state, mounted, logout }}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used inside AuthProvider");
+  return context;
 }
