@@ -1,211 +1,129 @@
 "use client";
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { Search, Plus, User, Users } from "lucide-react";
-import { useAuth, getCookie, refreshToken, verifyToken } from "@/utils/userAuth";
-import WebtoonCard from "@/components/Webtoon_card"
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import '../globals.css';
+import { Plus } from "lucide-react";
+import WebtoonCard from "@/components/Webtoon_card";
+import { Container, EmptyState, PageHeader, SearchInput, Segmented, ShelfSkeleton } from "@/components/ui";
+import { useAuth } from "@/utils/userAuth";
+import { api, ApiError } from "@/lib/api";
+import { useOpenWebtoon, usePaged } from "@/lib/hooks";
+import type { LibraryWebtoon } from "@/lib/types";
 
-type Release = {
-  id: string;
-  total_chapter: number;
-}
-
-type Webtoon = {
-  id: string;
-  title: string;
-  authors: string;
-  rating: number;
-  releases: Release[];
-  UR_rating: number;
-  UR_total_chapter: number;
-};
+type View = "mine" | "community";
 
 export default function Library() {
-  const [webtoons, setWebtoons] = useState<Webtoon[]>([]);
+  const [webtoons, setWebtoons] = useState<LibraryWebtoon[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [switchData, setSwitch] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<View>("mine");
   const router = useRouter();
-  const [visibleCount, setVisibleCount] = useState(10);
-  const { isLogged, token } = useAuth();
+  const { isLogged, mounted } = useAuth();
+  const openEntry = useOpenWebtoon("/library/update_webtoon");
 
   useEffect(() => {
-    const checkLogin = async () => {
-      const valid = await verifyToken(token);
-      if (!valid) {
-        const refresh = await refreshToken();
-        if (!refresh) {
-          router.push('/')
-          return;
-        }
-      }
-    };
-    checkLogin();
-  }, [isLogged, token]);
-
-  const handleswitch = useCallback(() => {
-    setSwitch(!switchData)
-  }, [switchData]);
-
-  // Fetch webtoons
-  useEffect(() => {
-    const fetchWebtoons = async () => {
-      try {
-        const token = getCookie('token');
-
-        // Check if token exists before making request
-        if (!token) {
-          // Clear any remaining cookies
-          document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          document.cookie = "username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-          router.push("/");
-          return;
-        }
-
-        const response = await fetch("http://127.0.0.1:8000/api/webtoon/get_library/", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          }
-        });
-
-        if (response.status === 401 || response.status === 403) {
-          router.push("/");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log(data);
+    if (!mounted) return;
+    if (!isLogged) {
+      router.replace("/login");
+      return;
+    }
+    api<LibraryWebtoon[]>("/api/webtoon/get_library/")
+      .then((data) => {
         setWebtoons(data);
         setError(null);
-      } catch (err) {
-        console.error("Failed to fetch webtoons:", err);
-        setError("Failed to load webtoons. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
+      })
+      .catch((err) => {
+        console.error("Failed to fetch library:", err);
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) router.replace("/login");
+        else setError("Your library could not be loaded. Try again in a moment.");
+      })
+      .finally(() => setLoading(false));
+  }, [mounted, isLogged, router]);
 
-    fetchWebtoons();
-  }, [router]);
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return webtoons;
+    return webtoons.filter((w) => w.title.toLowerCase().includes(q) || w.authors.toLowerCase().includes(q));
+  }, [webtoons, query]);
 
-  // Memoize filtered webtoons for performance
-  const filteredWebtoons = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return webtoons;
-
-    return webtoons.filter((webtoon) =>
-      webtoon.title.toLowerCase().includes(query) ||
-      webtoon.authors.toLowerCase().includes(query)
-    );
-  }, [webtoons, searchQuery]);
-
-  // Gestion du scroll infini
-  useEffect(() => {
-    const handleScroll = () => {
-      const bottom =
-        window.innerHeight + window.scrollY >=
-        document.body.offsetHeight - 300;
-
-      if (bottom && visibleCount < filteredWebtoons.length) {
-        setVisibleCount((prev) => prev + 10);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [visibleCount, filteredWebtoons.length]);
-
-  // Si on change complètement de recherche → on repart à 10
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [filteredWebtoons]);
-
-
-  const handleWebtoonClick = useCallback((webtoonId: string) => {
-    document.cookie = `webtoon=${webtoonId}; path=/; max-age=900; sameSite=lax;`;
-    router.push("/library/update_webtoon")
-  }, [router]);
-  
+  const { visible, sentinel, hasMore } = usePaged(filtered);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Search Header */}
-      <header className="bg-white px-4 py-3 shadow-sm flex justify-between items-center">
-        <div className="relative max-w-md w-full">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search webtoons or authors..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            aria-label="Search webtoons"
+    <Container className="pt-8 sm:pt-12">
+      <PageHeader
+        eyebrow={loading ? "Your shelf" : `${webtoons.length} series on your shelf`}
+        title="Library"
+      >
+        <Link
+          href="/library/add_webtoon"
+          className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-sm font-semibold text-paper transition-opacity hover:opacity-90"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.5} /> Add a webtoon
+        </Link>
+      </PageHeader>
+
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Search your library"
+          className="sm:max-w-sm sm:flex-1"
+          aria-label="Search your library"
+        />
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted">Ratings and chapters</span>
+          <Segmented
+            label="Show ratings and chapters from"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "mine", label: "Mine" },
+              { value: "community", label: "Community" },
+            ]}
           />
         </div>
-        <div className="flex gap-2 justify-end">
-          <button
-            onClick={handleswitch}
-            className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gray/20 text-black rounded-full hover:bg-indigo/30 transition-all text-sm sm:text-base"
-          >
-              {switchData ? (
-                <Users className="w-4 h-4" />
-              ) : (
-                <User className="w-4 h-4" />
-              )}
-            
-          </button>
-        </div>
-      </header>
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 p-4 space-y-3 pb-20">
+      <div className="mt-8">
         {loading ? (
-          <div className="text-center text-gray-500 py-10">
-            <div className="animate-pulse">Loading webtoons...</div>
-          </div>
+          <ShelfSkeleton />
         ) : error ? (
-          <div className="text-center text-red-500 py-10">
-            <p>{error}</p>
-          </div>
-        ) : filteredWebtoons.length === 0 ? (
-          <div className="text-center text-gray-500 py-10">
-            <p>
-              {searchQuery
-                ? `No webtoons found for "${searchQuery}"`
-                : "No webtoons available."}
-            </p>
-          </div>
+          <EmptyState title="Nothing loaded" body={error} />
+        ) : webtoons.length === 0 ? (
+          <EmptyState
+            title="Your shelf is empty"
+            body="Add series from Discover with the plus button, or create an entry for one that is not listed yet."
+            action={
+              <Link href="/discover" className="inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-semibold text-paper">
+                Browse Discover
+              </Link>
+            }
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState title={`No match for "${query}"`} body="Only titles and authors in your library are searched." />
         ) : (
-          filteredWebtoons.map((webtoon) => (
-            <WebtoonCard
-              key={webtoon.id}
-              id={webtoon.id}
-              title={webtoon.title}
-              authors={webtoon.authors}
-              rating={switchData ? webtoon.rating : webtoon.UR_rating}
-              totalChapters={switchData ? webtoon.releases?.[0]?.total_chapter : webtoon.UR_total_chapter}
-              onClick={handleWebtoonClick}
-            />
-          ))
+          <>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {visible.map((webtoon, i) => (
+                <WebtoonCard
+                  key={webtoon.id}
+                  index={i % 20}
+                  id={webtoon.id}
+                  title={webtoon.title}
+                  authors={webtoon.authors}
+                  rating={view === "mine" ? webtoon.UR_rating : webtoon.rating}
+                  totalChapters={
+                    view === "mine" ? webtoon.UR_total_chapter : webtoon.releases?.[0]?.total_chapter ?? 0
+                  }
+                  onClick={openEntry}
+                />
+              ))}
+            </div>
+            {hasMore && <div ref={sentinel} className="h-px" />}
+          </>
         )}
-        {/* bouton add webtoon */}
-        <button
-          onClick={() => router.push("/library/add_webtoon")}
-          className="fixed bottom-24 right-10 bg-purple-300 hover:bg-purple-500 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-        >
-          <Plus className="w-6 h-6" />
-        </button>
-      </main>
-    </div>
+      </div>
+    </Container>
   );
 }
