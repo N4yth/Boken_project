@@ -1,9 +1,9 @@
 from rest_framework import viewsets, status
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from api.permissions import IsSelfOrAdmin
+from api.permissions import IsSelfOrAdmin, IsAdmin
 from api.models.user import User
 from api.serializers import UserSerializer
 
@@ -19,7 +19,7 @@ class UserViewSet(viewsets.ModelViewSet):
         elif self.action in ['update', 'destroy', 'partial_update', 'retrieve']:
             return [IsAuthenticated(), IsSelfOrAdmin()]
         elif self.action in ['list']:
-            return [IsAdminUser()]
+            return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
 
     # === Création admin ===

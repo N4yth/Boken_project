@@ -40,6 +40,22 @@ class UserSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data, password=password)
         return user
 
+    def update(self, instance, validated_data):
+        # without this the default update stores the password as plain text
+        password = validated_data.pop('password', None)
+        user = super().update(instance, validated_data)
+        if password:
+            user.set_password(password)
+            user.save(update_fields=['password'])
+        return user
+
+class PublicUserSerializer(serializers.ModelSerializer):
+    """User shown inside public data (no email)."""
+    class Meta:
+        model = User
+        fields = ['id', 'username']
+        read_only_fields = fields
+
 class AuthorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Author
@@ -72,7 +88,7 @@ class GenreSerializer(serializers.ModelSerializer):
 
 
 class WebtoonSerializer(serializers.ModelSerializer):
-    add_by = UserSerializer(read_only=True)
+    add_by = PublicUserSerializer(read_only=True)
     authors = AuthorNamesField(required=False)
     genres = serializers.PrimaryKeyRelatedField(
         many=True,

@@ -35,6 +35,8 @@ class UserReleaseViewSet(viewsets.ModelViewSet):
         # a private webtoon of someone else, or someone else's pending release
         if not visible_releases_queryset(self.request.user).filter(pk=release.pk).exists():
             raise ValidationError({"release_id": ["Release not found."]})
+        if UserRelease.objects.filter(user_id=self.request.user, release_id=release).exists():
+            raise ValidationError({"release_id": ["This release is already in your library."]})
         serializer.save(user_id=self.request.user)
 
     @action(detail=False, methods=['get'], url_path='with_webtoon/(?P<webtoon_id>[^/.]+)', permission_classes=[IsAuthenticated, IsReaderOrAdmin])

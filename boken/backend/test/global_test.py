@@ -331,6 +331,8 @@ class GlobalAPITests(APITestCase):
 
     def test_user_release_user_can_create_own(self):
         """✅ Users can create their own user releases"""
+        # start from a release that is not in user1's library yet (duplicates are rejected)
+        UserRelease.objects.filter(user_id=self.user1, release_id=self.public_release).delete()
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         data = {
             "release_id": self.public_release.id,
@@ -348,6 +350,8 @@ class GlobalAPITests(APITestCase):
 
     def test_user_release_user_cannot_create_for_others(self):
         """🚫 Users cannot create releases for other users"""
+        # start from a release that is not in user1's library yet (duplicates are rejected)
+        UserRelease.objects.filter(user_id=self.user1, release_id=self.public_release).delete()
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         data = {
             "release_id": self.public_release.id,

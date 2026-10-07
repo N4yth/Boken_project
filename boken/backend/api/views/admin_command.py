@@ -4,7 +4,6 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from api.permissions import IsAdmin
 from api.external_api import save_webtoon, fetch_page, is_webtoon
-from api.models.webtoon import Webtoon
 import time
 from django.db import connection
 import threading

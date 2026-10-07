@@ -143,6 +143,8 @@ class UserReleasePermissionTests(APITestCase):
 
     def test_authenticated_user_can_create_user_release(self):
         """✅ Authenticated user can create their own user release"""
+        # start from a release that is not in user1's library yet (duplicates are rejected)
+        UserRelease.objects.filter(user_id=self.user1, release_id=self.release1).delete()
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         data = {
             "release_id": self.release1.id,
@@ -163,6 +165,8 @@ class UserReleasePermissionTests(APITestCase):
 
     def test_user_cannot_specify_different_user_id_on_create(self):
         """🚫 User cannot create a release for another user"""
+        # start from a release that is not in user1's library yet (duplicates are rejected)
+        UserRelease.objects.filter(user_id=self.user1, release_id=self.release1).delete()
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         data = {
             "release_id": self.release1.id,

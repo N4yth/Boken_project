@@ -28,3 +28,8 @@ class UserRelease(BaseModel):
         blank=False,
         related_name='userrelease'
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user_id', 'release_id'], name='unique_userrelease_per_user'),
+        ]

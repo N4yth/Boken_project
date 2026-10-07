@@ -8,6 +8,8 @@ from api.models.author import Author
 from django.db import transaction
 
 ANILIST_URL = "https://graphql.anilist.co"
+MAX_ATTEMPTS = 3
+RETRY_DELAY = 60  # seconds, AniList rate limit is per minute
 
 # AniList countryOfOrigin -> Release.language (ISO 639-1)
 ORIGIN_LANGUAGE = {
@@ -46,15 +48,20 @@ def fetch_page(page, per_page=50):
     }
     '''
     variables = {"page": page, "perPage": per_page}
-    response = requests.post(ANILIST_URL, json={"query": query, "variables": variables})
-    
-    if response.status_code != 200:
-        print(f"Error AniList ({response.status_code}{response.text}), retry in 60s…")
-        time.sleep(60)
-        print(f"Request restart")
-        return fetch_page(page, per_page)
-    
-    return response.json()["data"]["Page"]
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            response = requests.post(ANILIST_URL, json={"query": query, "variables": variables}, timeout=30)
+        except requests.RequestException as e:
+            error = str(e)
+        else:
+            if response.status_code == 200:
+                return response.json()["data"]["Page"]
+            error = f"{response.status_code} {response.text[:200]}"
+        print(f"Error AniList ({error}), attempt {attempt}/{MAX_ATTEMPTS}")
+        if attempt < MAX_ATTEMPTS:
+            time.sleep(RETRY_DELAY)
+    # stops the import (its status becomes "error") instead of retrying forever
+    raise RuntimeError(f"AniList unreachable after {MAX_ATTEMPTS} attempts: {error}")
 
 def map_status(status_str):
     mapping = {

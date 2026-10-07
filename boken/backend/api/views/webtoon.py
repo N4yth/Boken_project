@@ -11,11 +11,14 @@ from api.models.user_release import UserRelease
 from django_filters import rest_framework as filters
 from api.serializers import WebtoonSerializer, UserReleaseSerializer, WebtoonSearchSerializer, ReleaseSerializer
 from api.models.genre import Genre
-from api.models.author import Author
 from django.db.models import Exists, OuterRef, Q
 from rest_framework import generics
-from api.models.release import Release
 from django.db import transaction
+
+def with_related(queryset):
+    """Load genres, authors, releases and creator in a few queries instead of a few per webtoon."""
+    return queryset.select_related('add_by').prefetch_related('genres', 'authors', 'release')
+
 
 class WebtoonViewSet(viewsets.ModelViewSet):
     queryset = Webtoon.objects.all()
@@ -35,15 +38,29 @@ class WebtoonViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if is_admin(user):
-            return Webtoon.objects.all()
-        if user.is_authenticated:
-            return Webtoon.objects.filter(Q(is_public=True) | Q(add_by_id=user.id))
-        return Webtoon.objects.filter(is_public=True)
+            queryset = Webtoon.objects.all()
+        elif user.is_authenticated:
+            queryset = Webtoon.objects.filter(Q(is_public=True) | Q(add_by_id=user.id))
+        else:
+            queryset = Webtoon.objects.filter(is_public=True)
+        return with_related(queryset)
 
     def perform_create(self, serializer):
         if "is_public" in self.request.data and not is_admin(self.request.user):
             raise PermissionDenied("Permission denied you cannot create a public webtoon without admin permission.")
         serializer.save(add_by=self.request.user)
+
+    def perform_update(self, serializer):
+        # a webtoon only becomes public through an admin review
+        if "is_public" in self.request.data and not is_admin(self.request.user):
+            raise PermissionDenied("Only an admin can change the visibility of a webtoon.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # deleting a public webtoon also deletes the library entries of every reader
+        if instance.is_public and not is_admin(self.request.user):
+            raise PermissionDenied("Public webtoons can only be deleted by an admin.")
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def check(self, request, pk=None):
@@ -103,7 +120,7 @@ class WebtoonViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def get_library(self, request):
         try:
-            library = Webtoon.objects.filter(release__userrelease__user_id = request.user.id).distinct()
+            library = with_related(Webtoon.objects.filter(release__userrelease__user_id = request.user.id).distinct())
             serializer = WebtoonSerializer(library, many=True, context={'request': request})
             data = []
             for webtoon in serializer.data:
@@ -125,9 +142,9 @@ class WebtoonViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def logged_user(self, request):
         try:
-            webtoons = Webtoon.objects.filter(
+            webtoons = with_related(Webtoon.objects.filter(
                 Q(is_public=True) | Q(add_by_id=request.user.id)
-            )
+            ))
             user_webtoon_ids = set(
                 str(wid)
                 for wid in UserRelease.objects.filter(user_id=request.user.id)
