@@ -1,6 +1,7 @@
 from django.db import models
 from .base_model import BaseModel
 from .webtoon import Webtoon
+from .user import User
 
 
 class Release(BaseModel):
@@ -24,6 +25,15 @@ class Release(BaseModel):
         null=True,
         blank=True,
         related_name='release'
+    )
+    # releases submitted by readers wait for an admin before being shown to everyone
+    waiting_review = models.BooleanField(default=False)
+    add_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='added_releases'
     )
 
     class Meta:

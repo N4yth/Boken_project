@@ -1,6 +1,4 @@
-from django.core.exceptions import ValidationError
 from rest_framework.permissions import BasePermission
-from api.models.webtoon import Webtoon
 
 
 def is_admin(user):
@@ -19,27 +17,19 @@ class IsCreatorOrAdmin(BasePermission):
             return True
         return obj.add_by_id is not None and obj.add_by_id == request.user.id
 
-class IsWebtoonCreatorOrAdmin(BasePermission):
+class IsAdmin(BasePermission):
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_authenticated):
-            return False
-        if is_admin(request.user):
-            return True
-        webtoon_id = request.data.get("webtoon_id")
-        if not webtoon_id:
-            # creation needs a target webtoon, updates are checked on the object
-            return view.action != "create"
-        try:
-            webtoon = Webtoon.objects.get(pk=webtoon_id)
-        except (Webtoon.DoesNotExist, ValidationError):
-            return False
-        return webtoon.add_by_id is not None and webtoon.add_by_id == request.user.id
+        return is_admin(request.user)
 
+class IsReleaseEditor(BasePermission):
+    """Admin, creator of the webtoon, or the submitter of a release still waiting for review."""
     def has_object_permission(self, request, view, obj):
         if is_admin(request.user):
             return True
         webtoon = obj.webtoon_id
-        return webtoon is not None and webtoon.add_by_id == request.user.id
+        if webtoon is not None and webtoon.add_by_id == request.user.id:
+            return True
+        return obj.waiting_review and obj.add_by_id == request.user.id
 
 class IsReaderOrAdmin(BasePermission):
     def has_object_permission(self, request, view, obj):

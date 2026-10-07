@@ -6,6 +6,8 @@ from api.models.user_release import UserRelease
 from api.serializers import UserReleaseSerializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
+from api.visibility import visible_releases_queryset
 
 
 class UserReleaseViewSet(viewsets.ModelViewSet):
@@ -29,6 +31,10 @@ class UserReleaseViewSet(viewsets.ModelViewSet):
         return UserRelease.objects.filter(user_id=user.id)
 
     def perform_create(self, serializer):
+        release = serializer.validated_data['release_id']
+        # a private webtoon of someone else, or someone else's pending release
+        if not visible_releases_queryset(self.request.user).filter(pk=release.pk).exists():
+            raise ValidationError({"release_id": ["Release not found."]})
         serializer.save(user_id=self.request.user)
 
     @action(detail=False, methods=['get'], url_path='with_webtoon/(?P<webtoon_id>[^/.]+)', permission_classes=[IsAuthenticated, IsReaderOrAdmin])

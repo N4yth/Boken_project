@@ -1,10 +1,10 @@
 from rest_framework import viewsets, status
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
-from api.permissions import IsCreatorOrAdmin, is_admin
+from api.permissions import IsCreatorOrAdmin, IsAdmin, is_admin
 from api.models.webtoon import Webtoon
 from api.models.user_release import UserRelease
 from django_filters import rest_framework as filters
@@ -27,8 +27,8 @@ class WebtoonViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         elif self.action in ['update', 'destroy', 'partial_update', 'create']:
             return [IsAuthenticated(), IsCreatorOrAdmin()]
-        elif self.action in ['set_to_public']:
-            return [IsAdminUser()]
+        elif self.action in ['set_to_public', 'check', 'review']:
+            return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
@@ -44,11 +44,11 @@ class WebtoonViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Permission denied you cannot create a public webtoon without admin permission.")
         serializer.save(add_by=self.request.user)
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    @action(detail=False, methods=['get'])
     def check(self, request, pk=None):
         try:
             check_list = Webtoon.objects.filter(waiting_review = True)
-            serializer = WebtoonSerializer(check_list, many=True)
+            serializer = WebtoonSerializer(check_list, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except PermissionError as e:
             return Response({"error": str(e)}, status=status.HTTP_403_FORBIDDEN)
@@ -73,6 +73,19 @@ class WebtoonViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(webtoon)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        """Admin: {"approve": true} makes a submitted webtoon public, {"approve": false} keeps it private."""
+        webtoon = self.get_object()
+        approve = request.data.get('approve')
+        if not isinstance(approve, bool):
+            return Response({"approve": ["Must be true or false."]}, status=status.HTTP_400_BAD_REQUEST)
+        webtoon.waiting_review = False
+        if approve:
+            webtoon.is_public = True
+        webtoon.save()
+        return Response(self.get_serializer(webtoon).data, status=status.HTTP_200_OK)
+
     def retrieve(self, request, *args, **kwargs):
         user = request.user
         instance = self.get_object()
@@ -90,7 +103,7 @@ class WebtoonViewSet(viewsets.ModelViewSet):
     def get_library(self, request):
         try:
             library = Webtoon.objects.filter(release__userrelease__user_id = request.user.id).distinct()
-            serializer = WebtoonSerializer(library, many=True)
+            serializer = WebtoonSerializer(library, many=True, context={'request': request})
             data = []
             for webtoon in serializer.data:
                 UserR = UserRelease.objects.filter(
@@ -119,7 +132,7 @@ class WebtoonViewSet(viewsets.ModelViewSet):
                 for wid in UserRelease.objects.filter(user_id=request.user.id)
                 .values_list("release_id__webtoon_id__id", flat=True)
             )
-            serializer = WebtoonSerializer(webtoons, many=True)
+            serializer = WebtoonSerializer(webtoons, many=True, context={'request': request})
             data = []
             for webtoon_data in serializer.data:
                 webtoon_id = webtoon_data["id"]

@@ -6,6 +6,13 @@ from .models.author import Author
 from .models.release import Release
 from .models.user_release import UserRelease
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .visibility import visible_releases
+
+
+def request_user(serializer):
+    request = serializer.context.get('request')
+    return getattr(request, 'user', None)
+
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -17,6 +24,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         data['username'] = self.user.username
+        data['role'] = self.user.role
         return data
 
 class UserSerializer(serializers.ModelSerializer):
@@ -81,7 +89,7 @@ class WebtoonSerializer(serializers.ModelSerializer):
         """Remplace la liste d’IDs des genres par leurs données complètes"""
         rep = super().to_representation(instance)
         rep["genres"] = GenreSerializer(instance.genres.all(), many=True).data
-        rep["releases"] = ReleaseSerializer(instance.release.all(), many=True).data
+        rep["releases"] = ReleaseSerializer(visible_releases(instance, request_user(self)), many=True).data
         return rep
 
     def create(self, validated_data):
@@ -100,8 +108,8 @@ class WebtoonSerializer(serializers.ModelSerializer):
 class ReleaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Release
-        fields = ['id', 'alt_title', 'description', 'language', 'total_chapter', 'webtoon_id','create_at', 'update_at']
-        read_only_fields = ['id', 'create_at', 'update_at'] 
+        fields = ['id', 'alt_title', 'description', 'language', 'total_chapter', 'webtoon_id', 'waiting_review', 'add_by', 'create_at', 'update_at']
+        read_only_fields = ['id', 'waiting_review', 'add_by', 'create_at', 'update_at']
 
 class UserReleaseSerializer(serializers.ModelSerializer):
     user_id = UserSerializer(read_only=True)
@@ -112,7 +120,7 @@ class UserReleaseSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user_id', 'create_at', 'update_at'] 
 
 class WebtoonSearchSerializer(serializers.ModelSerializer):
-    releases = ReleaseSerializer(many=True, read_only=True, source='release')
+    releases = serializers.SerializerMethodField()
     authors = AuthorNamesField(read_only=True)
     addable = serializers.SerializerMethodField()
     
@@ -120,6 +128,9 @@ class WebtoonSearchSerializer(serializers.ModelSerializer):
         model = Webtoon
         fields = ['id', 'title', 'authors', 'rating', 'releases', 'addable']
     
+    def get_releases(self, obj):
+        return ReleaseSerializer(visible_releases(obj, request_user(self)), many=True).data
+
     def get_addable(self, obj):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
