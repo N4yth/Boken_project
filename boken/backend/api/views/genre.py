@@ -8,7 +8,7 @@ from api.serializers import GenreSerializer
 class GenreViewSet(viewsets.ModelViewSet):
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer 
-    permission_classes = [JWTAuthentication]
+    authentication_classes = [JWTAuthentication]
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

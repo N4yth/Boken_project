@@ -65,10 +65,10 @@ class WebtoonViewSetTestCase(APITestCase):
         self.private_webtoon_creator2.genres.add(self.genre1, self.genre2)
         
         # URLs de base
-        self.list_url = '/api/webtoons/'  # Adapter selon votre configuration
-        self.public_detail_url = f'/api/webtoons/{self.public_webtoon.id}/'
-        self.private_detail_url_c1 = f'/api/webtoons/{self.private_webtoon_creator1.id}/'
-        self.private_detail_url_c2 = f'/api/webtoons/{self.private_webtoon_creator2.id}/'
+        self.list_url = '/api/webtoon/'  # Adapter selon votre configuration
+        self.public_detail_url = f'/api/webtoon/{self.public_webtoon.id}/'
+        self.private_detail_url_c1 = f'/api/webtoon/{self.private_webtoon_creator1.id}/'
+        self.private_detail_url_c2 = f'/api/webtoon/{self.private_webtoon_creator2.id}/'
 
     # ==================== TESTS LIST ====================
     
@@ -193,7 +193,7 @@ class WebtoonViewSetTestCase(APITestCase):
         self.client.force_authenticate(user=self.creator2)
         data = {'title': 'Hacked Title'}
         response = self.client.patch(self.private_detail_url_c1, data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_update_by_admin_success(self):
         """Un admin peut modifier n'importe quel webtoon"""
@@ -236,7 +236,7 @@ class WebtoonViewSetTestCase(APITestCase):
         """Un créateur ne peut pas supprimer le webtoon d'un autre"""
         self.client.force_authenticate(user=self.creator2)
         response = self.client.delete(self.private_detail_url_c1)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(Webtoon.objects.filter(id=self.private_webtoon_creator1.id).exists())
 
     def test_delete_by_admin_success(self):

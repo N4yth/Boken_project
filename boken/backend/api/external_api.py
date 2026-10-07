@@ -57,7 +57,7 @@ def map_status(status_str):
 def save_webtoon(entry, added_by=None):
     title = entry["title"].get("english") or entry["title"].get("romaji") or "Unknown"
     authors = ", ".join([s["node"]["name"]["full"] for s in entry.get("staff", {}).get("edges", [])]) or "Unknown"
-    release_year = entry.get("startDate", {}).get("year") or 0000
+    release_year = entry.get("startDate", {}).get("year") or 2000
     status = map_status(entry.get("status"))
     genres = entry.get("genres", [])
     description = entry.get("description") or "No description available."

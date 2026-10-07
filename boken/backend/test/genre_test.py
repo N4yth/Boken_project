@@ -9,7 +9,7 @@ User = get_user_model()
 class GenrePermissionTests(APITestCase):
     def setUp(self):
         # URLs
-        self.genres_url = "/api/genres/"
+        self.genres_url = "/api/genre/"
 
         # Création d’un utilisateur simple
         self.user = User.objects.create_user(

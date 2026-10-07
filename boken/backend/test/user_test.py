@@ -9,8 +9,8 @@ User = get_user_model()
 class UserPermissionTests(APITestCase):
     def setUp(self):
         # URLs
-        self.users_url = "/api/users/"
-        self.create_admin_url = "/api/users/create_admin/"
+        self.users_url = "/api/user/"
+        self.create_admin_url = "/api/user/create_admin/"
 
         # Création d’un utilisateur simple
         self.user = User.objects.create_user(

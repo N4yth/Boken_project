@@ -10,6 +10,8 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 @api_view(['POST'])
 def verify_token(request):
     token = request.data.get("token")
+    if not token:
+        return Response({"valid": False}, status=status.HTTP_401_UNAUTHORIZED)
     try:
         UntypedToken(token)
         return Response({"valid": True}, status=status.HTTP_200_OK)

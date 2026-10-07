@@ -16,11 +16,11 @@ class GlobalAPITests(APITestCase):
     def setUp(self):
         """Set up test data for all models"""
         # URLs
-        self.genres_url = "/api/genres/"
-        self.webtoons_url = "/api/webtoons/"
+        self.genres_url = "/api/genre/"
+        self.webtoons_url = "/api/webtoon/"
         self.releases_url = "/api/releases/"
         self.user_releases_url = "/api/usereleases/"
-        self.users_url = "/api/users/"
+        self.users_url = "/api/user/"
 
         # === Create Users ===
         self.user1 = User.objects.create_user(
@@ -369,7 +369,7 @@ class GlobalAPITests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         url = f"{self.user_releases_url}{self.user_release2.id}/"
         res = self.client.patch(url, {"chapter_read": 50}, format="json")
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_user_release_user_can_update_own(self):
         """✅ Users can update their own releases"""
@@ -420,7 +420,7 @@ class GlobalAPITests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         url = f"{self.user_releases_url}{self.user_release2.id}/"
         res = self.client.delete(url)
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_user_release_user_can_delete_own(self):
         """✅ Users can delete their own releases"""

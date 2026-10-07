@@ -11,7 +11,7 @@ from api.serializers import UserSerializer
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer 
-    permission_classes = [JWTAuthentication]
+    authentication_classes = [JWTAuthentication]
 
     def get_permissions(self):
         if self.action in ['create', 'create_admin']:

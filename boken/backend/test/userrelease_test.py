@@ -238,7 +238,7 @@ class UserReleasePermissionTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         url = f"{self.user_releases_url}{self.user_release2.id}/"
         res = self.client.patch(url, {"chapter_read": 50}, format="json")
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_user_can_update_own_user_release(self):
         """✅ User can update their own user release"""
@@ -345,7 +345,7 @@ class UserReleasePermissionTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
         url = f"{self.user_releases_url}{self.user_release2.id}/"
         res = self.client.delete(url)
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_user_can_delete_own_user_release(self):
         """✅ User can delete their own user release"""

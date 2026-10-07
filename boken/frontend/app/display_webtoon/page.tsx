@@ -169,16 +169,16 @@ export default function displayWebtoon() {
                   {/* Add to Library Button */}
                   <button
                     onClick={handleFavorite}
-                    disabled={webtoon.addable || favoriteLoading}
+                    disabled={!webtoon.addable || favoriteLoading}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all shadow-lg whitespace-nowrap
-                    ${webtoon.addable
+                    ${!webtoon.addable
                         ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                         : "bg-white text-pink-600 hover:bg-pink-50"
                       }
                     ${favoriteLoading ? "opacity-50" : ""}
                   `}
                   >
-                    {!webtoon.addable ? (
+                    {webtoon.addable ? (
                       <>
                         <Heart className="w-4 h-4" />
                         <span className="font-semibold">

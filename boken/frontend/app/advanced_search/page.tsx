@@ -140,7 +140,7 @@ export default function AdvancedSearch() {
 
       setSearchResults(prevResults =>
         prevResults.map(wt =>
-          wt.id === webtoonId ? { ...wt, addble: false } : wt
+          wt.id === webtoonId ? { ...wt, addable: false } : wt
         )
       );
 

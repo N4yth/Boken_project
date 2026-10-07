@@ -1,11 +1,9 @@
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from api.permissions import IsReaderOrAdmin, DataAuthorization
+from api.permissions import IsReaderOrAdmin, DataAuthorization, is_admin
 from api.models.user_release import UserRelease
 from api.serializers import UserReleaseSerializer
-from api.models.release import Release
-from api.models.user import User
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -24,10 +22,14 @@ class UserReleaseViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsReaderOrAdmin(), DataAuthorization()]
         return [IsAuthenticated()]
 
+    def get_queryset(self):
+        user = self.request.user
+        if is_admin(user):
+            return UserRelease.objects.all()
+        return UserRelease.objects.filter(user_id=user.id)
+
     def perform_create(self, serializer):
-        release = Release.objects.get(pk=self.request.data["release_id"])
-        user = User.objects.get(pk=self.request.user.id)
-        serializer.save(release_id=release, user_id=user)
+        serializer.save(user_id=self.request.user)
 
     @action(detail=False, methods=['get'], url_path='with_webtoon/(?P<webtoon_id>[^/.]+)', permission_classes=[IsAuthenticated, IsReaderOrAdmin])
     def with_webtoon(self, request, webtoon_id=None):

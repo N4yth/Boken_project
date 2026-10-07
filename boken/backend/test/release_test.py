@@ -173,7 +173,7 @@ class ReleasePermissionTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
         url = f"{self.releases_url}{self.private_release.id}/"
         res = self.client.patch(url, {"alt_title": "Hacked"}, format="json")
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_admin_can_update_any_release(self):
         """✅ Admin peut modifier n’importe quelle release"""
@@ -187,7 +187,7 @@ class ReleasePermissionTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
         url = f"{self.releases_url}{self.private_release.id}/"
         res = self.client.delete(url)
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_admin_can_delete_any_release(self):
         """✅ Admin peut supprimer toutes les releases"""

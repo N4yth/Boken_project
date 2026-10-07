@@ -23,6 +23,12 @@ class UserManager(BaseUserManager):
         admin.save(using=self._db)
         return admin
 
+    def create_superuser(self, email, username, password=None):
+        admin = self.model(email=email, username=username, role="admin", is_staff=True, is_superuser=True)
+        admin.set_password(password)
+        admin.save(using=self._db)
+        return admin
+
 
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     ROLE_CHOICES = (

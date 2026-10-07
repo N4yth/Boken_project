@@ -7,6 +7,8 @@ from api.models.webtoon import Webtoon
 import time
 import threading
 
+progress = {"status": "not started", "create": 0, "already found": 0, "pourcentage": "0%"}
+
 # ---- available request ----
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
