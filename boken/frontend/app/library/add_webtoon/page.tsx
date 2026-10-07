@@ -1,547 +1,315 @@
 "use client";
-import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, BookOpen, Users, Calendar, Tag, Languages, FileText, CheckCircle, Star, Hash } from "lucide-react";
-import { useAuth } from "@/utils/userAuth";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import '../../globals.css';
+import { ArrowLeft, Check } from "lucide-react";
+import Cover from "@/components/Cover";
+import { Stars } from "@/components/Rating";
+import { Button, Container, Field, Segmented } from "@/components/ui";
+import { useFeedback } from "@/components/feedback";
+import { useAuth } from "@/utils/userAuth";
+import { api, ApiError } from "@/lib/api";
+import { LANGUAGES, READING_STATUS, WEBTOON_STATUS } from "@/lib/format";
+import type { Genre, ReadingStatus } from "@/lib/types";
 
-type Genre = {
-  id: string;
-  name: string;
+const EMPTY = {
+  title: "",
+  altTitle: "",
+  authors: "",
+  releaseDate: "",
+  status: "in progress",
+  language: "eng",
+  chapters: "",
+  description: "",
+  readingStatus: "to read" as ReadingStatus,
+  chapterRead: "",
+  personalTotal: "",
+  rating: 0,
+  note: "",
+  waitingReview: false,
 };
 
 export default function AddWebtoonPage() {
+  const [form, setForm] = useState(EMPTY);
   const [genres, setGenres] = useState<Genre[]>([]);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [language, setLanguage] = useState<string>("eng");
-  const [title, setTitle] = useState("");
-  const [authors, setAuthors] = useState("");
-  const [chapters, setChapters] = useState("");
-  const [status, setStatus] = useState("in progress");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
-  const [releaseDate, setReleaseDate] = useState<string>("");
-  const [genresLoading, setGenresLoading] = useState(true);
-  const [showGenres, setShowGenres] = useState(false);
-  const [description, setDescription] = useState("");
-  const [waitingReview, setWaitingReview] = useState(false);
-  const { isLogged, token, mounted } = useAuth();
-  const [authChecking, setAuthChecking] = useState(true);
-  const [altTitle, setAltTitle] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string>("");
-  const [success, setSuccess] = useState(false);
-
-  // Authentication check
-  useEffect(() => {
-    if (!mounted) return;
-    
-    if (!isLogged) {
-      router.push('/login');
-      return;
-    }
-    setAuthChecking(false);
-  }, [isLogged, router, mounted]);
-  const [hoverRating, setHoverRating] = useState<number | null>(null);
-  const [chapterRead, setChapterRead] = useState("");
-  const [personalNote, setPersonalNote] = useState("");
-  const [personalTotalChapter, setPersonalTotalChapter] = useState("");
-  const [personalRating, setPersonalRating] = useState(0);
-  const [readingStatus, setReadingStatus] = useState("to read");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError("");
-    setSuccess(false);
-
-    // Validation
-    if (selectedGenres.length === 0) {
-      setError("Please select at least one genre");
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (!chapters || parseInt(chapters) < 0) {
-      setError("Please enter a valid number of chapters");
-      setIsSubmitting(false);
-      return;
-    }
-
-    // Format data with personal information
-    const newWebtoon = {
-      title,
-      authors,
-      genres: selectedGenres,
-      release_date: releaseDate,
-      status,
-      waiting_review: waitingReview,
-      rating: 0,
-      alt_title: altTitle,
-      description,
-      language: "eng",
-      total_chapter: parseInt(chapters),
-      // Personal information
-      chapter_read: chapterRead ? parseInt(chapterRead) : 0,
-      note: personalNote || "",
-      personal_total_chapter: personalTotalChapter ? parseInt(personalTotalChapter) : 0,
-      personal_rating: personalRating || 0,
-      reading_status: readingStatus || "to read",
-    };
-
-    try {
-      const response = await fetch("http://127.0.0.1:8000/api/webtoon/full_create/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(newWebtoon),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Failed to create webtoon: ${response.status}`);
-      }
-
-      setSuccess(true);
-
-      // Reset form after success
-      setTimeout(() => {
-        setTitle("");
-        setAuthors("");
-        setAltTitle("");
-        setDescription("");
-        setChapters("");
-        setReleaseDate("");
-        setSelectedGenres([]);
-        setWaitingReview(false);
-        setStatus("in progress");
-        setLanguage("eng");
-        setChapterRead("");
-        setPersonalNote("");
-        setPersonalTotalChapter("");
-        setPersonalRating(0);
-        setReadingStatus("to read");
-        setSuccess(false);
-
-        router.push("/library");
-      }, 1500);
-
-    } catch (err) {
-      console.error("Error:", err);
-      setError(err instanceof Error ? err.message : "An error occurred while creating the webtoon");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const toggleGenre = (genreId: string) => {
-    setSelectedGenres(prev =>
-      prev.includes(genreId)
-        ? prev.filter(id => id !== genreId)
-        : [...prev, genreId]
-    );
-  };
+  const { isLogged, mounted } = useAuth();
+  const { toast } = useFeedback();
 
   useEffect(() => {
-    const fetchGenres = async () => {
-      try {
-        const response = await fetch("http://127.0.0.1:8000/api/genre/");
-        if (response.ok) {
-          const data = await response.json();
-          setGenres(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch genres:", err);
-      } finally {
-        setGenresLoading(false);
-      }
-    };
-    fetchGenres();
+    if (mounted && !isLogged) router.replace("/login");
+  }, [mounted, isLogged, router]);
+
+  useEffect(() => {
+    api<Genre[]>("/api/genre/", { auth: false })
+      .then(setGenres)
+      .catch((err) => console.error("Failed to fetch genres:", err));
   }, []);
 
-  if (authChecking) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          <div className="animate-pulse">Checking authentication...</div>
-        </div>
-      </div>
-    );
-  }
+  const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
-  if (!isLogged) {
-    return null; // This will prevent any flash of content while redirecting
-  }
+  const toggleGenre = (id: string) =>
+    setSelectedGenres((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]));
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const chapters = parseInt(form.chapters, 10);
+    if (selectedGenres.length === 0) return setError("Pick at least one genre.");
+    if (Number.isNaN(chapters) || chapters < 0) return setError("Enter how many chapters are out.");
+
+    const personalTotal = form.personalTotal ? parseInt(form.personalTotal, 10) : chapters;
+    const chapterRead = form.chapterRead ? parseInt(form.chapterRead, 10) : 0;
+    if (chapterRead > personalTotal) return setError("Chapters read cannot be higher than the total.");
+
+    setSubmitting(true);
+    try {
+      await api("/api/webtoon/full_create/", {
+        method: "POST",
+        body: {
+          title: form.title.trim(),
+          authors: form.authors.trim(),
+          genres: selectedGenres,
+          release_date: form.releaseDate,
+          status: form.status,
+          waiting_review: form.waitingReview,
+          rating: 0,
+          alt_title: form.altTitle.trim(),
+          description: form.description.trim(),
+          language: form.language,
+          total_chapter: chapters,
+          chapter_read: chapterRead,
+          note: form.note,
+          personal_total_chapter: personalTotal,
+          personal_rating: form.rating,
+          reading_status: form.readingStatus,
+        },
+      });
+      toast(form.waitingReview ? "Added and sent for review" : "Added to your library", "success");
+      router.push("/library");
+    } catch (err) {
+      console.error("Error creating webtoon:", err);
+      setError(err instanceof ApiError ? err.message : "The webtoon could not be created.");
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center p-4 sm:p-6">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 sm:p-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white flex items-center gap-3">
-            <BookOpen className="w-8 h-8" />
-            Add New Webtoon
-          </h1>
-          <p className="text-purple-100 mt-2">Fill in the details to create a new webtoon entry</p>
-        </div>
+    <Container className="pt-6 sm:pt-8">
+      <Link href="/library" className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
+        <ArrowLeft className="h-4 w-4" /> Library
+      </Link>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
-          {/* Success Message */}
-          {success && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3 animate-pulse">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <p className="text-green-800 font-medium">Webtoon created successfully!</p>
+      <div className="border-b border-line pb-5">
+        <p className="eyebrow mb-2">New entry</p>
+        <h1 className="display text-[2.6rem] sm:text-6xl">Add a webtoon</h1>
+        <p className="mt-3 max-w-xl text-[15px] text-muted">
+          Entries start private, only you can see them. Submit one for review and an admin can make it public.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-8 grid gap-10 lg:grid-cols-[1fr_260px]">
+        <div className="min-w-0 space-y-10">
+          <Section title="The series">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label="Title" htmlFor="title" className="sm:col-span-2">
+                <input id="title" required value={form.title} onChange={(e) => set("title", e.target.value)} className="field" />
+              </Field>
+              <Field label="Alternative title" htmlFor="alt" hint="Original or translated title">
+                <input id="alt" required value={form.altTitle} onChange={(e) => set("altTitle", e.target.value)} className="field" />
+              </Field>
+              <Field label="Authors" htmlFor="authors" hint="Separate names with commas">
+                <input id="authors" required value={form.authors} onChange={(e) => set("authors", e.target.value)} className="field" />
+              </Field>
+              <Field label="First release" htmlFor="date">
+                <input
+                  id="date"
+                  type="date"
+                  required
+                  value={form.releaseDate}
+                  onChange={(e) => set("releaseDate", e.target.value)}
+                  className="field"
+                />
+              </Field>
+              <Field label="Chapters out" htmlFor="chapters">
+                <input
+                  id="chapters"
+                  type="number"
+                  min={0}
+                  required
+                  value={form.chapters}
+                  onChange={(e) => set("chapters", e.target.value)}
+                  className="field font-mono"
+                />
+              </Field>
+              <Field label="Publication" htmlFor="status">
+                <select id="status" value={form.status} onChange={(e) => set("status", e.target.value)} className="field">
+                  {WEBTOON_STATUS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Language" htmlFor="language">
+                <select id="language" value={form.language} onChange={(e) => set("language", e.target.value)} className="field">
+                  {LANGUAGES.map((l) => (
+                    <option key={l.value} value={l.value}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Synopsis" htmlFor="description" className="sm:col-span-2">
+                <textarea
+                  id="description"
+                  rows={5}
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  className="field resize-y leading-relaxed"
+                />
+              </Field>
             </div>
-          )}
+          </Section>
 
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800 text-sm">{error}</p>
-            </div>
-          )}
-
-          {/* Title */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <BookOpen className="w-4 h-4 text-purple-600" />
-              Title *
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
-              placeholder="Enter webtoon title"
-              required
-            />
-          </div>
-
-          {/* Alt Title */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <FileText className="w-4 h-4 text-purple-600" />
-              Alternative Title *
-            </label>
-            <input
-              type="text"
-              value={altTitle}
-              onChange={(e) => setAltTitle(e.target.value)}
-              className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
-              placeholder="Enter alternative title"
-              required
-            />
-          </div>
-
-          {/* Authors */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <Users className="w-4 h-4 text-purple-600" />
-              Authors *
-            </label>
-            <input
-              type="text"
-              value={authors}
-              onChange={(e) => setAuthors(e.target.value)}
-              className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
-              placeholder="Enter author names"
-              required
-            />
-          </div>
-
-          {/* Release Date & Language */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <Calendar className="w-4 h-4 text-purple-600" />
-                Release Date *
-              </label>
-              <input
-                type="date"
-                value={releaseDate}
-                onChange={(e) => setReleaseDate(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <Languages className="w-4 h-4 text-purple-600" />
-                Language *
-              </label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
-              >
-                <option value="eng">English</option>
-                <option value="fra">French</option>
-                <option value="spa">Spanish</option>
-                <option value="jpn">Japanese</option>
-                <option value="kor">Korean</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Status & Chapters */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <Tag className="w-4 h-4 text-purple-600" />
-                Status *
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
-              >
-                <option value="in progress">In Progress</option>
-                <option value="finish">Finished</option>
-                <option value="pause">Paused</option>
-                <option value="cancel">Cancelled</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <FileText className="w-4 h-4 text-purple-600" />
-                Total Chapters *
-              </label>
-              <input
-                type="number"
-                value={chapters}
-                onChange={(e) => setChapters(e.target.value)}
-                min="0"
-                max="9999"
-                className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors"
-                placeholder="0"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Genres */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowGenres(!showGenres)}
-              className="w-full flex items-center justify-between bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-4 hover:border-purple-400 transition-all"
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <Tag className="w-4 h-4 text-purple-600" />
-                Genres {selectedGenres.length > 0 && `(${selectedGenres.length} selected)`} *
-              </span>
-              {showGenres ? <ChevronUp className="w-5 h-5 text-purple-600" /> : <ChevronDown className="w-5 h-5 text-purple-600" />}
-            </button>
-
-            {showGenres && (
-              <div className="border-2 border-purple-200 rounded-lg p-4 max-h-64 overflow-y-auto bg-gray-50">
-                {genresLoading ? (
-                  <p className="text-center text-gray-500 py-8">Loading genres...</p>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {genres.map((genre) => (
-                      <label
-                        key={genre.id}
-                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedGenres.includes(genre.id)}
-                          onChange={() => toggleGenre(genre.id)}
-                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
-                        />
-                        <span className="text-sm text-gray-700">{genre.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
+          <Section title="Genres" aside={selectedGenres.length > 0 ? `${selectedGenres.length} selected` : "Pick at least one"}>
+            {genres.length === 0 ? (
+              <p className="text-sm text-muted">Loading genres</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {genres.map((genre) => {
+                  const on = selectedGenres.includes(genre.id);
+                  return (
+                    <button
+                      key={genre.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggleGenre(genre.id)}
+                      className={`chip ${on ? "border-ink bg-ink text-paper" : "bg-sheet hover:border-ink/40"}`}
+                    >
+                      {on && <Check className="h-3.5 w-3.5" strokeWidth={2.5} />}
+                      {genre.name}
+                    </button>
+                  );
+                })}
               </div>
             )}
-          </div>
+          </Section>
 
-          {/* Description */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <FileText className="w-4 h-4 text-purple-600" />
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Write a brief description of the webtoon..."
-              rows={4}
-              className="w-full border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 focus:outline-none transition-colors resize-none"
-            />
-          </div>
+          <Section title="Your reading">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <p className="mb-2 text-[13px] font-semibold">Status</p>
+                <Segmented
+                  label="Reading status"
+                  value={form.readingStatus}
+                  options={READING_STATUS}
+                  onChange={(value) => set("readingStatus", value)}
+                />
+              </div>
+              <Field label="Chapters read" htmlFor="read">
+                <input
+                  id="read"
+                  type="number"
+                  min={0}
+                  value={form.chapterRead}
+                  onChange={(e) => set("chapterRead", e.target.value)}
+                  placeholder="0"
+                  className="field font-mono"
+                />
+              </Field>
+              <Field label="Out in your language" htmlFor="ptotal" hint="Leave empty to use chapters out">
+                <input
+                  id="ptotal"
+                  type="number"
+                  min={0}
+                  value={form.personalTotal}
+                  onChange={(e) => set("personalTotal", e.target.value)}
+                  placeholder={form.chapters || "0"}
+                  className="field font-mono"
+                />
+              </Field>
+              <div className="sm:col-span-2">
+                <p className="mb-2 text-[13px] font-semibold">Your rating</p>
+                <Stars value={form.rating} onChange={(value) => set("rating", value)} label="Your rating" />
+              </div>
+              <Field label="Note" htmlFor="note" className="sm:col-span-2">
+                <textarea
+                  id="note"
+                  rows={3}
+                  value={form.note}
+                  onChange={(e) => set("note", e.target.value)}
+                  className="field resize-y leading-relaxed"
+                />
+              </Field>
+            </div>
+          </Section>
 
-          {/* Waiting Review Checkbox */}
-          <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <label className="flex cursor-pointer items-start gap-4 rounded-panel border border-line bg-sheet p-4 transition-colors hover:border-ink/30">
             <input
               type="checkbox"
-              id="waitingReview"
-              checked={waitingReview}
-              onChange={(e) => setWaitingReview(e.target.checked)}
-              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+              checked={form.waitingReview}
+              onChange={(e) => set("waitingReview", e.target.checked)}
+              className="peer sr-only"
             />
-            <label htmlFor="waitingReview" className="text-sm font-medium text-gray-700 cursor-pointer">
-              Submit for review
-            </label>
-          </div>
-
-          {/* Personal Information Section */}
-          <div className="border-t-4 border-amber-300 pt-6 mt-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Star className="w-6 h-6 text-amber-500" />
-              Personal Information
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">Track your reading progress for this webtoon</p>
-
-            {/* Reading Status */}
-            <div className="space-y-2 mb-4">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <Tag className="w-4 h-4 text-amber-600" />
-                Reading Status
-              </label>
-              <select
-                value={readingStatus}
-                onChange={(e) => setReadingStatus(e.target.value)}
-                className="w-full border-2 border-amber-200 rounded-lg p-3 focus:border-amber-500 focus:outline-none transition-colors"
-              >
-                <option value="to read">To Read</option>
-                <option value="reading">Reading</option>
-                <option value="finish">Completed</option>
-              </select>
-            </div>
-
-            {/* Chapters Read & Personal Total */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Hash className="w-4 h-4 text-amber-600" />
-                  Chapters Read
-                </label>
-                <input
-                  type="number"
-                  value={chapterRead}
-                  onChange={(e) => setChapterRead(e.target.value)}
-                  min="0"
-                  max="9999"
-                  className="w-full border-2 border-amber-200 rounded-lg p-3 focus:border-amber-500 focus:outline-none transition-colors"
-                  placeholder="0"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Hash className="w-4 h-4 text-amber-600" />
-                  Personal Total Chapters
-                </label>
-                <input
-                  type="number"
-                  value={personalTotalChapter}
-                  onChange={(e) => setPersonalTotalChapter(e.target.value)}
-                  min="0"
-                  max="9999"
-                  className="w-full border-2 border-amber-200 rounded-lg p-3 focus:border-amber-500 focus:outline-none transition-colors"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            {/* Personal Rating */}
-            <div className="space-y-2 mb-4">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <Star className="w-4 h-4 text-amber-600" />
-                Your Rating
-              </label>
-
-              <div className="flex items-center gap-3">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => {
-                    const starValue = i + 1;
-                    const fillPercent =
-                      (hoverRating ?? personalRating) >= starValue
-                        ? 100
-                        : (hoverRating ?? personalRating) >= starValue - 0.5
-                        ? 50
-                        : 0;
-
-                    return (
-                      <div
-                        key={i}
-                        className="relative w-6 h-6 cursor-pointer"
-                        onMouseMove={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const x = e.clientX - rect.left;
-                          const newHover =
-                            x < rect.width / 2 ? starValue - 0.5 : starValue;
-                          setHoverRating(newHover);
-                        }}
-                        onMouseLeave={() => setHoverRating(null)}
-                        onClick={() => {
-                          if (hoverRating != null) {
-                            setPersonalRating(hoverRating);
-                          }
-                        }}
-                      >
-                        <Star className="absolute top-0 left-0 w-6 h-6 text-gray-300 fill-gray-300" />
-                        <div
-                          className="absolute top-0 left-0 overflow-hidden transition-all duration-150"
-                          style={{ width: `${fillPercent}%` }}
-                        >
-                          <Star className="w-6 h-6 text-yellow-400 fill-yellow-400" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <span className="text-sm font-semibold text-gray-700">
-                  {personalRating > 0 ? `${personalRating}/5` : "No rating"}
-                </span>
-              </div>
-            </div>
-
-
-            {/* Personal Note */}
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <FileText className="w-4 h-4 text-amber-600" />
-                Personal Note
-              </label>
-              <textarea
-                value={personalNote}
-                onChange={(e) => setPersonalNote(e.target.value)}
-                placeholder="Add your personal notes about this webtoon..."
-                rows={3}
-                className="w-full border-2 border-amber-200 rounded-lg p-3 focus:border-amber-500 focus:outline-none transition-colors resize-none"
+            <span className="mt-0.5 grid h-5 w-9 shrink-0 items-center rounded-full bg-ink/15 p-0.5 transition-colors peer-checked:bg-jade peer-focus-visible:ring-2 peer-focus-visible:ring-seal">
+              <span
+                className={`h-4 w-4 rounded-full bg-sheet shadow transition-transform ${form.waitingReview ? "translate-x-4" : ""}`}
               />
-            </div>
+            </span>
+            <span>
+              <span className="block text-sm font-semibold">Submit for review</span>
+              <span className="mt-0.5 block text-sm text-muted">
+                An admin checks the entry before it shows up for everyone.
+              </span>
+            </span>
+          </label>
+
+          {error && (
+            <p role="alert" className="rounded-lg border border-seal/30 bg-seal/[0.07] px-3.5 py-2.5 text-sm text-seal">
+              {error}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-3 border-t border-line pt-6">
+            <Button type="submit" size="lg" disabled={submitting}>
+              {submitting ? "Saving" : "Add to library"}
+            </Button>
+            <Link
+              href="/library"
+              className="inline-flex h-12 items-center rounded-full px-5 text-[15px] font-semibold text-muted hover:text-ink"
+            >
+              Cancel
+            </Link>
           </div>
+        </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold py-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
-          >
-            {isSubmitting ? "Creating..." : "Create Webtoon"}
-          </button>
+        <aside className="hidden lg:block">
+          <div className="sticky top-24">
+            <p className="eyebrow mb-3">Preview</p>
+            <Cover title={form.title || "Untitled"} seed={form.title || "untitled"} chapters={parseInt(form.chapters, 10) || 0} />
+            <p className="mt-3 truncate text-[15px] font-semibold">{form.title || "Untitled"}</p>
+            <p className="truncate text-[13px] text-muted">{form.authors || "Author"}</p>
+          </div>
+        </aside>
+      </form>
+    </Container>
+  );
+}
 
-          {/* Back Button */}
-          <button
-            type="button"
-            onClick={() => router.push("/library")}
-            className="w-full text-purple-600 font-medium py-2 hover:text-purple-700 transition-colors"
-          >
-            ← Back to Library
-          </button>
-        </form>
-      </div>
-    </div>
+function Section({ title, aside, children }: { title: string; aside?: string; children: ReactNode }) {
+  return (
+    <fieldset>
+      <legend className="mb-5 flex w-full items-baseline justify-between border-b border-line pb-2">
+        <span className="text-lg font-semibold">{title}</span>
+        {aside && <span className="font-mono text-xs text-muted">{aside}</span>}
+      </legend>
+      {children}
+    </fieldset>
   );
 }
