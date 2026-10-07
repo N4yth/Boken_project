@@ -1,305 +1,174 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { BookOpen, Languages, Calendar, CheckCircle, XCircle } from "lucide-react";
-import { useAuth, verifyToken, getCookie, refreshToken } from "@/utils/userAuth"
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import '../../globals.css';
+import { ArrowLeft, Check, X } from "lucide-react";
+import Cover from "@/components/Cover";
+import StatusPill from "@/components/StatusPill";
+import { Button, Container, EmptyState } from "@/components/ui";
+import { useFeedback } from "@/components/feedback";
+import { useAuth } from "@/utils/userAuth";
+import { api, ApiError } from "@/lib/api";
+import { getCookie } from "@/lib/cookies";
+import { LANGUAGES, formatDate } from "@/lib/format";
+import type { Webtoon } from "@/lib/types";
 
-type Release = {
-  id: string;
-  total_chapter: number;
-  alt_title: string;
-  description: string;
-}
-
-type Webtoon = {
-  id: string;
-  title: string;
-  authors: string;
-  status: string;
-  releases: Release[];
-  genres: Genre[];
-  update_at: Date;
-};
-
-type Genre = {
-  name: string;
-};
-
-
-export default function updateWebtoon() {
-  const [webtoon, setWebtoons] = useState<Webtoon>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function ReviewRequest() {
+  const [webtoon, setWebtoon] = useState<Webtoon>();
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
   const router = useRouter();
-
-  const { isLogged, token, mounted } = useAuth();
+  const { isLogged, mounted } = useAuth();
+  const { confirm, toast } = useFeedback();
 
   useEffect(() => {
-      const checkLogin = async () => {
-        const valid = await verifyToken(token);
-        if (!valid) {
-          const refresh = await refreshToken();
-          if (!refresh) {
-            router.push('/')
-            return;
-          }
-        }
-      };
-      checkLogin();
-    }, [isLogged, token]);
-
-  // Fetch webtoons
-  useEffect(() => {
-    const fetchWebtoons = async () => {
-      try {
-        if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          }
-        });
-
-        if (response.status === 401 || response.status === 403) {
-          router.push("/");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setWebtoons(data);
-        setError(null);
-      } catch (err) {
-        console.error("Failed to fetch webtoons:", err);
-        setError("Failed to load webtoons. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWebtoons();
-  }, [router, mounted]);
-
-  const handleDenied = useCallback(async () => {
-    if (confirm("are you sure to refuse this webtoon ?")) {
-      try {
-        if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/set_to_public/`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify(getCookie('webtoon'))
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        alert("request entry webtoon has be denied")
-        router.push("/news")
-      } catch (err) {
-        alert("Failed to denied request")
-        console.error("Failed to denied request:", err);
-      } 
+    if (!mounted) return;
+    if (!isLogged) {
+      router.replace("/login");
+      return;
     }
-  }, [router, token]);
-
-  const HandleAccept = useCallback(async () => {
-    if (confirm("are you sure to accept this webtoon ?")) {
-      try {
-        if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            waiting_review: false,
-            is_public: true
-          })
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        alert("webtoon is now public")
-        router.push("/news")
-      } catch (err) {
-        alert("Failed to denied request")
-        console.error("Failed to denied request:", err);
-      } 
+    const id = getCookie("webtoon");
+    if (!id) {
+      router.replace("/news");
+      return;
     }
-  }, [router, token]);
+    api<Webtoon>(`/api/webtoon/${id}/`)
+      .then(setWebtoon)
+      .catch((err) => {
+        console.error("Failed to fetch request:", err);
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) router.replace("/news");
+        else setFailed(true);
+      });
+  }, [mounted, isLogged, router]);
+
+  const decide = async (accept: boolean) => {
+    if (!webtoon) return;
+    const ok = await confirm(
+      accept
+        ? {
+            title: "Publish this entry?",
+            body: "It becomes visible to everyone on Boken.",
+            confirmLabel: "Publish",
+          }
+        : {
+            title: "Decline this entry?",
+            body: "It goes back to private. The reader keeps it in their library.",
+            confirmLabel: "Decline",
+            danger: true,
+          }
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await api(`/api/webtoon/${webtoon.id}/`, {
+        method: "PATCH",
+        body: accept ? { waiting_review: false, is_public: true } : { waiting_review: false },
+      });
+      toast(accept ? "Published" : "Declined", accept ? "success" : "default");
+      router.push("/news");
+    } catch (err) {
+      console.error("Review decision failed:", err);
+      toast("That did not go through, try again", "error");
+      setBusy(false);
+    }
+  };
+
+  if (failed) {
+    return (
+      <Container className="pt-10">
+        <EmptyState
+          title="This request could not be loaded"
+          action={
+            <Link href="/news" className="inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-semibold text-paper">
+              Back to requests
+            </Link>
+          }
+        />
+      </Container>
+    );
+  }
+
+  if (!webtoon) {
+    return (
+      <Container className="pt-14">
+        <div className="h-80 animate-pulse rounded-panel bg-ink/[0.06]" />
+      </Container>
+    );
+  }
+
+  const release = webtoon.releases?.[0];
+  const language = LANGUAGES.find((l) => l.value === release?.language)?.label ?? release?.language;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col">
-      <main className="flex-1 p-4 pb-24">
-        {webtoon ? (
-          <div className="max-w-4xl mx-auto">
-            {/* Hero Card */}
-            <div className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
-              {/* Header with gradient */}
-              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-4 sm:p-6 text-white">
-                <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-4">
-                  <div className="flex-1 w-full sm:w-auto">
-                    <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">
-                      {webtoon.title}
-                    </h1>
-                    <p className="text-indigo-100 text-xs sm:text-sm break-words">by {webtoon.authors}</p>
-                  </div>
-                </div>
+    <Container className="max-w-4xl pt-6 sm:pt-8">
+      <Link href="/news" className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
+        <ArrowLeft className="h-4 w-4" /> Requests
+      </Link>
 
-                {/* Status */}
-                <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 sm:gap-4">
-                  <span
-                    className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded-full ${webtoon.status === "Ongoing"
-                      ? "bg-green-400 text-green-900"
-                      : "bg-gray-300 text-gray-800"
-                      }`}
-                  >
-                    {webtoon.status}
-                  </span>
-
-                  {/* Total Chapters Badge */}
-                  <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5">
-                    <BookOpen className="w-4 h-4" />
-                    <span className="text-xs sm:text-sm font-semibold">
-                      {webtoon.releases[0]?.total_chapter} Chapters
-                    </span>
-                  </div>
-                </div>
-
-                {/* Genres */}
-                {webtoon.genres && webtoon.genres.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {webtoon.genres.map((genre: Genre, index: number) => (
-                      <span
-                        key={index}
-                        className="px-2 sm:px-3 py-1 text-xs font-medium bg-white/20 backdrop-blur-sm text-white rounded-full"
-                      >
-                        {genre.name}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-400 italic font-normal">
-                    No genres for this webtoon
-                  </div>
-                )}
-              </div>
-
-              {/* Content Section */}
-              <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                {/* Info Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Status Card */}
-                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-3 h-3 rounded-full ${webtoon.status === "Ongoing" ? "bg-green-500" : "bg-gray-500"
-                        }`} />
-                      <h3 className="text-sm font-semibold text-gray-700">Publication Status</h3>
-                    </div>
-                    <p className="text-xl font-bold text-indigo-900 capitalize">
-                      {webtoon.status}
-                    </p>
-                  </div>
-
-                  {/* Chapters Card */}
-                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <BookOpen className="w-4 h-4 text-purple-600" />
-                      <h3 className="text-sm font-semibold text-gray-700">Total Chapters</h3>
-                    </div>
-                    <div className="text-xl font-bold text-purple-900">
-                      {webtoon.releases[0]?.total_chapter === 0 ? (
-                        <div className="text-sm text-gray-400 italic font-normal">
-                          The number of chapters is not found or not out in this language
-                        </div>
-                      ) : (
-                        <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">
-                          {webtoon.releases[0]?.total_chapter}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Alternative Title */}
-                {webtoon.releases?.[0]?.alt_title && (
-                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-4 sm:p-5 border border-blue-100">
-                    <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                      <Languages className="w-4 sm:w-5 h-4 sm:h-5 text-blue-600" />
-                      Also Known As
-                    </h2>
-                    <p className="text-sm sm:text-base text-gray-700 break-words">
-                      {webtoon.releases[0].alt_title}
-                    </p>
-                  </div>
-                )}
-
-                {/* Description */}
-                {webtoon.releases?.[0]?.description ? (
-                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 sm:p-5 border border-amber-100">
-                    <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3">
-                      Description
-                    </h2>
-                    <p className="text-sm sm:text-base text-gray-700 leading-relaxed break-words">
-                      {webtoon.releases[0].description}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-400 italic font-normal">
-                    No description
-                  </div>
-                )}
-
-                {/* Last Update */}
-                <div className="flex items-center justify-center gap-2 text-xs sm:text-sm text-gray-500 pt-4 border-t border-gray-200">
-                  <Calendar className="w-4 h-4" />
-                  <span>
-                    Last Updated: {webtoon?.update_at
-                      ? new Date(webtoon.update_at).toLocaleDateString("en-US", {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })
-                      : "No update date"}
-                  </span>
-                </div>
-              </div>
-            </div>
+      <div className="grid gap-8 sm:grid-cols-[180px_1fr]">
+        <Cover title={webtoon.title} chapters={release?.total_chapter} className="w-40 sm:w-full" />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill status={webtoon.status} />
+            {webtoon.add_by?.username && <span className="eyebrow">Submitted by {webtoon.add_by.username}</span>}
           </div>
-        ) : (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
-            <p className="mt-4 text-gray-600 font-medium">Loading webtoon details...</p>
-          </div>
-        )}
-        <div className="flex justify-center">
-          <div className="flex gap-3 mt-2 mb-2">
-            <button
-              onClick={HandleAccept}
-              className="flex items-center justify-center gap-2 w-32 px-4 py-2.5 bg-gradient-to-r from-green-400 to-emerald-500 text-white rounded-lg shadow-md hover:shadow-lg hover:opacity-90 active:scale-95 transition-all font-medium text-sm sm:text-base"
-            >
-              <CheckCircle className="w-5 h-5" />
-              Accept
-            </button>
+          <h1 className="display mt-4 break-words text-5xl sm:text-6xl">{webtoon.title}</h1>
+          {release?.alt_title && <p className="mt-2 text-muted">{release.alt_title}</p>}
+          <p className="mt-1 text-[15px] font-semibold">{webtoon.authors}</p>
 
-            <button
-              onClick={handleDenied}
-              className="flex items-center justify-center gap-2 w-32 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-red-500 text-white rounded-lg shadow-md hover:shadow-lg hover:opacity-90 active:scale-95 transition-all font-medium text-sm sm:text-base"
+          <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-line py-5 text-sm sm:grid-cols-4">
+            <Item label="Chapters">{release?.total_chapter ?? 0}</Item>
+            <Item label="Language">{language || "Unknown"}</Item>
+            <Item label="First release">{formatDate(webtoon.release_date) || "Unknown"}</Item>
+            <Item label="Genres">{webtoon.genres?.length ?? 0}</Item>
+          </dl>
+
+          {webtoon.genres && webtoon.genres.length > 0 && (
+            <ul className="mt-5 flex flex-wrap gap-2">
+              {webtoon.genres.map((g) => (
+                <li key={g.id} className="chip">
+                  {g.name}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-8">
+            <h2 className="eyebrow mb-3">Synopsis</h2>
+            {release?.description ? (
+              <p className="max-w-[65ch] whitespace-pre-line leading-[1.7]">{release.description}</p>
+            ) : (
+              <p className="text-muted">No synopsis provided.</p>
+            )}
+          </div>
+
+          <div className="mt-10 flex flex-wrap gap-3 border-t border-line pt-6">
+            <Button size="lg" disabled={busy} onClick={() => decide(true)} icon={<Check className="h-4 w-4" strokeWidth={2.5} />}>
+              Publish
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              disabled={busy}
+              onClick={() => decide(false)}
+              className="text-seal"
+              icon={<X className="h-4 w-4" strokeWidth={2.5} />}
             >
-              <XCircle className="w-5 h-5" />
-              Deny
-            </button>
+              Decline
+            </Button>
           </div>
         </div>
-      </main>
+      </div>
+    </Container>
+  );
+}
+
+function Item({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="eyebrow">{label}</dt>
+      <dd className="mt-1 font-mono">{children}</dd>
     </div>
   );
 }
