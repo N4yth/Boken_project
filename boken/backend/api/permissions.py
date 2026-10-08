@@ -22,12 +22,16 @@ class IsAdmin(BasePermission):
         return is_admin(request.user)
 
 class IsReleaseEditor(BasePermission):
-    """Admin, creator of the webtoon, or the submitter of a release still waiting for review."""
+    """
+    Admin, creator of a webtoon that is still private, or the submitter of a release
+    still waiting for review. Releases of a public webtoon are shared data: only an admin
+    changes them (deleting one also deletes the readers' library entries).
+    """
     def has_object_permission(self, request, view, obj):
         if is_admin(request.user):
             return True
         webtoon = obj.webtoon_id
-        if webtoon is not None and webtoon.add_by_id == request.user.id:
+        if webtoon is not None and not webtoon.is_public and webtoon.add_by_id == request.user.id:
             return True
         return obj.waiting_review and obj.add_by_id == request.user.id
 

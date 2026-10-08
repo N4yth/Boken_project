@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework import routers
 from rest_framework_simplejwt.views import TokenRefreshView
-from api.views.views import MyTokenObtainPairView, verify_token
+from api.views.views import MyTokenObtainPairView, verify_token, logout
 from api.views.user import UserViewSet
 from api.views.webtoon import WebtoonViewSet, WebtoonSearchView
 from api.views.genre import GenreViewSet
@@ -29,5 +29,6 @@ urlpatterns = [
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('verify_token/', verify_token, name='verify_token'),
+    path('logout/', logout, name='logout'),
 ]
 

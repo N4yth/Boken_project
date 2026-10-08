@@ -214,13 +214,15 @@ class GlobalAPITests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_webtoon_creator_can_edit_own(self):
-        """✅ Creators can edit their own webtoons"""
+        """✅ Creators can edit their own webtoons while they are private, not the community rating"""
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user1_token}")
+        self.public_webtoon.is_public = False
+        self.public_webtoon.save()
         url = f"{self.webtoons_url}{self.public_webtoon.id}/"
-        res = self.client.patch(
-            url, {"rating": 4.8}, format="json"
-        )
+        res = self.client.patch(url, {"title": "Renamed by creator"}, format="json")
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        res = self.client.patch(url, {"rating": 4.8}, format="json")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_webtoon_admin_can_set_public(self):
         """✅ Admin can set webtoon to public"""

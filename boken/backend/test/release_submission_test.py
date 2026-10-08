@@ -50,9 +50,14 @@ class ReleaseSubmissionTests(APITestCase):
         res = self.submit(self.other)
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_creator_and_admin_publish_directly(self):
-        self.assertFalse(self.submit(self.creator, "en").data["waiting_review"])
+    def test_admin_publishes_directly(self):
         self.assertFalse(self.submit(self.admin, "es").data["waiting_review"])
+
+    def test_creator_publishes_directly_only_while_private(self):
+        # the webtoon of setUp is public: its creator goes through the review like readers
+        self.assertTrue(self.submit(self.creator, "en").data["waiting_review"])
+        private = Webtoon.objects.create(title="Draft", release_date=date(2020, 1, 1), status="finish", add_by=self.creator)
+        self.assertFalse(self.submit(self.creator, "en", webtoon=private).data["waiting_review"])
 
     def test_cannot_publish_own_submission_by_patching(self):
         release_id = self.submit(self.reader).data["id"]

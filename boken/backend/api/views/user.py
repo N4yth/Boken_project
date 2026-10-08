@@ -3,6 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.throttling import ScopedRateThrottle
 from api.permissions import IsSelfOrAdmin, IsAdmin
 from api.models.user import User
 from api.serializers import UserSerializer
@@ -14,13 +15,23 @@ class UserViewSet(viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
 
     def get_permissions(self):
-        if self.action in ['create', 'create_admin']:
+        if self.action == 'create':
             return [AllowAny()]
+        elif self.action == 'create_admin':
+            # the first admin is created with "python manage.py createsuperuser"
+            return [IsAuthenticated(), IsAdmin()]
         elif self.action in ['update', 'destroy', 'partial_update', 'retrieve']:
             return [IsAuthenticated(), IsSelfOrAdmin()]
         elif self.action in ['list']:
             return [IsAuthenticated(), IsAdmin()]
         return [IsAuthenticated()]
+
+    def get_throttles(self):
+        # limits account creation: 20 per hour per IP (settings.DEFAULT_THROTTLE_RATES)
+        if self.action == 'create':
+            self.throttle_scope = 'register'
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
 
     @action(detail=False, methods=['get', 'patch', 'delete'])
     def me(self, request):

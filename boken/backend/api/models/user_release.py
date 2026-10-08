@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from .base_model import BaseModel
 from .release import Release
@@ -9,10 +10,10 @@ class UserRelease(BaseModel):
         ("reading", "Reading"),
         ("to read", "To read"),
     )
-    personal_total_chapter = models.IntegerField(default=0)
-    chapter_read = models.IntegerField(default=0)
+    personal_total_chapter = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    chapter_read = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     note = models.TextField(null=True, blank=True)
-    rating = models.FloatField(default=0.0)
+    rating = models.FloatField(default=0.0, validators=[MinValueValidator(0), MaxValueValidator(5)])
     reading_status = models.CharField(choices=STATUS_CHOICES, null=False, blank=False)
     release_id = models.ForeignKey(
         Release,

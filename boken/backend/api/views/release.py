@@ -30,18 +30,20 @@ class ReleaseViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        - admin or creator of the webtoon: the release is published directly
-        - reader who has the webtoon in their library: the release waits for an admin review
+        - admin, or creator of a webtoon that is still private: the release is published directly
+        - on a public webtoon, its creator or a reader who has it in their library:
+          the release waits for an admin review
         """
         user = self.request.user
         webtoon = serializer.validated_data.get('webtoon_id')
         if webtoon is None:
             raise ValidationError({"webtoon_id": ["This field is required."]})
-        if is_admin(user) or webtoon.add_by_id == user.id:
+        is_creator = webtoon.add_by_id == user.id
+        if is_admin(user) or (is_creator and not webtoon.is_public):
             serializer.save(add_by=user, waiting_review=False)
             return
         in_library = UserRelease.objects.filter(user_id=user, release_id__webtoon_id=webtoon).exists()
-        if not in_library or not webtoon.is_public:
+        if not webtoon.is_public or not (is_creator or in_library):
             raise PermissionDenied("Add this webtoon to your library before submitting a release.")
         serializer.save(add_by=user, waiting_review=True)
 

@@ -30,6 +30,13 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['role'] = self.user.role
         return data
 
+def revoke_refresh_tokens(user):
+    """Log the user out everywhere: every refresh token issued so far is blacklisted."""
+    from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
+
+
 class UserSerializer(serializers.ModelSerializer):
     # required on sign up only: a profile update (PATCH or PUT) does not have to change the password
     password = serializers.CharField(write_only=True, required=False)
@@ -73,6 +80,7 @@ class UserSerializer(serializers.ModelSerializer):
         if password:
             user.set_password(password)
             user.save(update_fields=['password'])
+            revoke_refresh_tokens(user)
         return user
 
 class PublicUserSerializer(serializers.ModelSerializer):

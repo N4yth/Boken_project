@@ -28,7 +28,11 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", 'django-insecure-j17qmxf+gkq@5oiv#dk
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 
-ALLOWED_HOSTS = []
+def env_list(name, default):
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1],backend")
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
@@ -46,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     "corsheaders",
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'api',
 ]
 
@@ -61,7 +66,9 @@ MIDDLEWARE = [
 ]
 
 AUTH_USER_MODEL = 'api.User' 
-CORS_ALLOW_ALL_ORIGINS = True 
+# every origin in debug, only the listed ones otherwise
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = env_list("DJANGO_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
 
 ROOT_URLCONF = 'backend.urls'
 
@@ -86,6 +93,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    # per IP, used by the login and sign up views (ScopedRateThrottle)
+    'DEFAULT_THROTTLE_RATES': {
+        'login': os.getenv("THROTTLE_LOGIN", "10/minute"),
+        'register': os.getenv("THROTTLE_REGISTER", "20/hour"),
+    },
 }
 
 # Database

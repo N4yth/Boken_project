@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from .base_model import BaseModel
 from .user import User
@@ -16,7 +17,7 @@ class Webtoon(BaseModel):
     release_date = models.DateField(default='2000-01-01', null=False, blank=False)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, null=False, blank=False)
     is_public = models.BooleanField(default=False)
-    rating = models.FloatField(default=0.0)
+    rating = models.FloatField(default=0.0, validators=[MinValueValidator(0), MaxValueValidator(5)])
     add_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

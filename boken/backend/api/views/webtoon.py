@@ -46,14 +46,23 @@ class WebtoonViewSet(viewsets.ModelViewSet):
         return with_related(queryset)
 
     def perform_create(self, serializer):
-        if "is_public" in self.request.data and not is_admin(self.request.user):
-            raise PermissionDenied("Permission denied you cannot create a public webtoon without admin permission.")
+        if not is_admin(self.request.user):
+            if "is_public" in self.request.data:
+                raise PermissionDenied("Permission denied you cannot create a public webtoon without admin permission.")
+            if "rating" in self.request.data:
+                raise PermissionDenied("Only an admin can set the community rating.")
         serializer.save(add_by=self.request.user)
 
     def perform_update(self, serializer):
-        # a webtoon only becomes public through an admin review
-        if "is_public" in self.request.data and not is_admin(self.request.user):
-            raise PermissionDenied("Only an admin can change the visibility of a webtoon.")
+        if not is_admin(self.request.user):
+            # once public, a webtoon is shared data: only an admin edits it
+            if serializer.instance.is_public:
+                raise PermissionDenied("Public webtoons can only be edited by an admin.")
+            # a webtoon only becomes public through an admin review
+            if "is_public" in self.request.data:
+                raise PermissionDenied("Only an admin can change the visibility of a webtoon.")
+            if "rating" in self.request.data:
+                raise PermissionDenied("Only an admin can set the community rating.")
         serializer.save()
 
     def perform_destroy(self, instance):
@@ -80,9 +89,11 @@ class WebtoonViewSet(viewsets.ModelViewSet):
         except Webtoon.DoesNotExist:
             return Response({'error': 'Webtoon not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        is_public = request.data.get('is_public', None)
-        if is_public is None:
-            return Response({'error': 'Wrong credentials, cannot set to public.'},
+        try:
+            # accepts true/false, 1/0, "true"/"false" (JSON or form data)
+            is_public = serializers.BooleanField().to_internal_value(request.data.get('is_public'))
+        except ValidationError:
+            return Response({'error': 'is_public must be true or false.'},
                 status=status.HTTP_400_BAD_REQUEST)
         
         webtoon.is_public = is_public
@@ -201,7 +212,8 @@ class WebtoonViewSet(viewsets.ModelViewSet):
                     'authors': data.get('authors'),
                     'genres': data.get('genres', []),
                     'status': data.get('status'),
-                    'rating': data.get('rating') or 0,
+                    # the community rating is not chosen by the creator
+                    'rating': (data.get('rating') or 0) if is_admin(request.user) else 0,
                     'waiting_review': bool(data.get('waiting_review', False)),
                 }, context={'request': request})
                 webtoon_serializer.is_valid(raise_exception=True)

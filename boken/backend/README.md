@@ -74,9 +74,13 @@ and are meant for **local development only**.
 | `DB_PORT` | `5432` | PostgreSQL port |
 | `DJANGO_SECRET_KEY` | insecure dev key | **Must be set in production** |
 | `DJANGO_DEBUG` | `1` | `0` to disable debug mode |
+| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1,[::1],backend` | Comma separated host names |
+| `DJANGO_CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Allowed origins when `DEBUG` is off (every origin is allowed in debug) |
+| `THROTTLE_LOGIN` | `10/minute` | Login attempts per IP |
+| `THROTTLE_REGISTER` | `20/hour` | Sign ups per IP |
 
 JWT lifetimes are set in `backend/settings.py` (`SIMPLE_JWT`): 15 minutes for the access token,
-1 hour for the refresh token. CORS is open to every origin (`CORS_ALLOW_ALL_ORIGINS = True`).
+1 hour for the refresh token.
 
 ---
 
@@ -150,6 +154,13 @@ POST /login/
 
 When the access token expires (15 min), get a new one with `POST /refresh/ {"refresh": "..."}`.
 
+- `POST /logout/ {"refresh": "..."}` revokes the refresh token (blacklist). The access token stays
+  valid until it expires.
+- Changing your password revokes all your refresh tokens: you are logged out everywhere.
+- Login is limited to 10 attempts per minute and sign up to 20 accounts per hour, per IP (429 after that).
+- The first admin is created with `python manage.py createsuperuser`; after that only an admin can
+  create another admin.
+
 ### Roles
 
 A user is an **admin** when `is_staff` is true or `role == "admin"` (`permissions.is_admin`).
@@ -157,8 +168,8 @@ A user is an **admin** when `is_staff` is true or `role == "admin"` (`permission
 | Who | Can |
 |---|---|
 | Anonymous | Read public webtoons, releases, genres; search; create an account |
-| User | Everything above, plus: manage their library, create (private) webtoons, edit their own webtoons, submit releases for webtoons in their library |
-| Creator of a webtoon | Edit it; delete it while it is private; add releases to it directly |
+| User | Everything above, plus: manage their library, create (private) webtoons, submit releases for public webtoons in their library |
+| Creator of a webtoon | While it is **private**: edit it, delete it, add / edit / delete its releases directly. Once **public**, it is shared data: their changes go through an admin (new releases wait for review) |
 | Admin | Everything: see all data, review submissions, make webtoons public, manage genres and users, run the AniList import |
 
 ### Visibility
@@ -181,11 +192,12 @@ Lists are not paginated. **Auth** column: `–` public, `user` logged in, `admin
 | POST | `/login/` | – | Get the tokens (see above) |
 | POST | `/refresh/` | – | New access token from a refresh token |
 | POST | `/verify_token/` | – | `{"valid": true}` (200) or 401; token in the body `{"token": ...}` or in the `Authorization` header |
+| POST | `/logout/` | user | Revoke a refresh token `{"refresh": "..."}` (205) |
 | POST | `/api/user/` | – | Register `{"username", "email", "password"}` |
 | GET / PATCH / DELETE | `/api/user/me/` | user | Read, update or delete **your own** account (no id needed) |
 | GET | `/api/user/` | admin | List the users |
 | GET / PATCH / PUT / DELETE | `/api/user/{id}/` | self or admin | Read, update or delete an account |
-| POST | `/api/user/create_admin/` | admin | Create another admin (also allowed anonymously when no admin exists yet) |
+| POST | `/api/user/create_admin/` | admin | Create another admin (the first one comes from `createsuperuser`) |
 
 **Updating an account**
 
@@ -214,7 +226,7 @@ PATCH /api/user/me/
 | GET | `/api/webtoon/` | – | Visible webtoons with their genres, authors and releases |
 | GET | `/api/webtoon/{id}/` | – | One webtoon; adds `addable` (false if already in your library) when logged in |
 | POST | `/api/webtoon/` | user | Create a private webtoon |
-| PATCH / PUT | `/api/webtoon/{id}/` | creator or admin | Update it (only an admin can change `is_public`) |
+| PATCH / PUT | `/api/webtoon/{id}/` | creator (private webtoon) or admin | Update it; only an admin can change `is_public` and `rating` |
 | DELETE | `/api/webtoon/{id}/` | creator or admin | Delete it (a public webtoon can only be deleted by an admin) |
 | POST | `/api/webtoon/full_create/` | user | Create a webtoon, its releases and a library entry in one call (see below) |
 | GET | `/api/webtoon/logged_user/` | user | Visible webtoons, each with `addable` |
@@ -271,7 +283,7 @@ and the response is `400 {"error": "...", "details": {field: [messages]}}`.
 | GET | `/api/releases/` | – | Visible releases |
 | GET | `/api/releases/{id}/` | – | One release |
 | POST | `/api/releases/` | user | Add a release to a webtoon (see [Review workflow](#7-review-workflow)) |
-| PATCH / PUT / DELETE | `/api/releases/{id}/` | admin, creator of the webtoon, or submitter while pending | A non-admin cannot move a release to another webtoon |
+| PATCH / PUT / DELETE | `/api/releases/{id}/` | admin, creator of a private webtoon, or submitter while pending | A non-admin cannot move a release to another webtoon |
 | POST | `/api/releases/{id}/review/` | admin | `{"approve": true}` publishes it, `false` deletes it |
 
 ```json
@@ -327,8 +339,8 @@ Nothing becomes public without an admin.
 
 | Who creates the release | Result |
 |---|---|
-| Admin, or creator of the webtoon | Published directly |
-| User who has the public webtoon in their library | Pending until an admin reviews it |
+| Admin, or creator of a webtoon that is still private | Published directly |
+| Creator of a public webtoon, or user who has it in their library | Pending until an admin reviews it |
 | Anyone else | 403 |
 
 An admin approves (`{"approve": true}`) or rejects (`false`, deletes it) with
@@ -391,3 +403,4 @@ python manage.py test test.full_create_test.FullCreateTests.test_duplicate_langu
 | `full_create_test.py` | Creating a webtoon with several releases |
 | `admin_dashboard_test.py` | Admin dashboard, AniList import status |
 | `checkup_test.py` | Password update, privacy, creator rules, duplicates, query count, AniList retries |
+| `security_test.py` | Admin creation, login / sign up limits, logout and session revocation, public data rules, value ranges |

@@ -1,3 +1,4 @@
+from django.core.validators import MinValueValidator
 from django.db import models
 from .base_model import BaseModel
 from .webtoon import Webtoon
@@ -18,7 +19,7 @@ class Release(BaseModel):
     alt_title = models.CharField(max_length=255, null=False, blank=False)
     description = models.TextField(null=False, blank=False)
     language = models.CharField(max_length=12, choices=LANGUAGE_CHOICES, default='ko', null=False, blank=False)
-    total_chapter = models.IntegerField(default=0)
+    total_chapter = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     webtoon_id = models.ForeignKey(
         Webtoon,
         on_delete=models.CASCADE,
