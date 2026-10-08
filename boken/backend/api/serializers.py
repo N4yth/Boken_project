@@ -1,3 +1,5 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from .models.user import User
 from .models.webtoon import Webtoon
@@ -23,17 +25,41 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
+        data['id'] = str(self.user.id)
         data['username'] = self.user.username
         data['role'] = self.user.role
         return data
 
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True)
+    # required on sign up only: a profile update (PATCH or PUT) does not have to change the password
+    password = serializers.CharField(write_only=True, required=False)
+    # needed when users change their own password
+    current_password = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'role', 'password', 'create_at', 'update_at']
+        fields = ['id', 'username', 'email', 'role', 'password', 'current_password', 'create_at', 'update_at']
         read_only_fields = ['id', 'role', 'create_at', 'update_at']
+
+    def validate(self, attrs):
+        password = attrs.get('password')
+        current_password = attrs.pop('current_password', None)
+        if self.instance is None and not password:
+            raise serializers.ValidationError({"password": ["This field is required."]})
+        if password:
+            # AUTH_PASSWORD_VALIDATORS: 8 characters min, not too common, not only digits, not close to username/email
+            candidate = self.instance or User(username=attrs.get('username', ''), email=attrs.get('email', ''))
+            try:
+                validate_password(password, candidate)
+            except DjangoValidationError as e:
+                raise serializers.ValidationError({"password": list(e.messages)})
+            request = self.context.get('request')
+            changing_own_password = (
+                self.instance is not None and request is not None and request.user.pk == self.instance.pk
+            )
+            if changing_own_password and not (current_password and self.instance.check_password(current_password)):
+                raise serializers.ValidationError({"current_password": ["Wrong current password."]})
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop('password')

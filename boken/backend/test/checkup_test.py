@@ -20,7 +20,7 @@ class PasswordUpdateTests(APITestCase):
     def test_patch_password_is_hashed_and_usable(self):
         user = User.objects.create_user(email="u@test.com", username="u", password="oldpass123")
         self.client.force_authenticate(user=user)
-        res = self.client.patch(f"/api/user/{user.id}/", {"password": "newpass456"}, format="json")
+        res = self.client.patch(f"/api/user/{user.id}/", {"password": "newpass456", "current_password": "oldpass123"}, format="json")
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         user.refresh_from_db()
         self.assertNotEqual(user.password, "newpass456")

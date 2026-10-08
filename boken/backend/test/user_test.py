@@ -34,21 +34,21 @@ class UserPermissionTests(APITestCase):
     # === TESTS POST ===
     def test_user_can_register(self):
         """✅ Un utilisateur peut créer un compte user"""
-        data = {"email": "new@test.com", "username": "new", "password": "1234"}
+        data = {"email": "new@test.com", "username": "new", "password": "securepass123"}
         response = self.client.post(self.users_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_user_cannot_create_admin(self):
         """🚫 Un user ne peut pas créer un admin"""
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.user_token}")
-        data = {"email": "badadmin@test.com", "username": "badadmin", "password": "1234", "role": "admin"}
+        data = {"email": "badadmin@test.com", "username": "badadmin", "password": "securepass123", "role": "admin"}
         response = self.client.post(self.create_admin_url, data, format="json")
         self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_400_BAD_REQUEST])
 
     def test_admin_can_create_admin(self):
         """✅ Un admin peut créer un autre admin"""
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.admin_token}")
-        data = {"email": "secondadmin@test.com", "username": "secondadmin", "password": "1234", "role": "admin"}
+        data = {"email": "secondadmin@test.com", "username": "secondadmin", "password": "securepass123", "role": "admin"}
         response = self.client.post(self.create_admin_url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["role"], "admin")
@@ -85,8 +85,7 @@ class UserPermissionTests(APITestCase):
         url = f"{self.users_url}{self.user.id}/"
         data = {
             "username": "user_edited",
-            "email": "user@test.com", 
-            "password": "1234"
+            "email": "user@test.com",
         }
         response = self.client.put(url, data, format="json")
         self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_202_ACCEPTED])
@@ -109,8 +108,8 @@ class UserPermissionTests(APITestCase):
         url = f"{self.users_url}{self.user.id}/"
         data = {
             "username": "user_modified_by_admin",
-            "email": "by@admin.com", 
-            "password": "1111"
+            "email": "by@admin.com",
+            "password": "setbyadmin123"
         }
         response = self.client.put(url, data, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

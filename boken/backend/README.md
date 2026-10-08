@@ -145,7 +145,7 @@ Authorization: Bearer <access token>
 POST /login/
 {"email": "reader@mail.com", "password": "..."}
 
-→ 200 {"access": "...", "refresh": "...", "username": "reader", "role": "user"}
+→ 200 {"access": "...", "refresh": "...", "id": "...", "username": "reader", "role": "user"}
 ```
 
 When the access token expires (15 min), get a new one with `POST /refresh/ {"refresh": "..."}`.
@@ -182,9 +182,30 @@ Lists are not paginated. **Auth** column: `–` public, `user` logged in, `admin
 | POST | `/refresh/` | – | New access token from a refresh token |
 | POST | `/verify_token/` | – | `{"valid": true}` (200) or 401; token in the body `{"token": ...}` or in the `Authorization` header |
 | POST | `/api/user/` | – | Register `{"username", "email", "password"}` |
+| GET / PATCH / DELETE | `/api/user/me/` | user | Read, update or delete **your own** account (no id needed) |
 | GET | `/api/user/` | admin | List the users |
-| GET / PATCH / DELETE | `/api/user/{id}/` | self or admin | Read, update (password included) or delete an account |
+| GET / PATCH / PUT / DELETE | `/api/user/{id}/` | self or admin | Read, update or delete an account |
 | POST | `/api/user/create_admin/` | admin | Create another admin (also allowed anonymously when no admin exists yet) |
+
+**Updating an account**
+
+```http
+PATCH /api/user/me/
+{"username": "new name", "email": "new@mail.com"}
+
+PATCH /api/user/me/
+{"current_password": "old password", "password": "new password"}
+```
+
+- `password` is only required to sign up: a profile update does not have to change it.
+- Users changing **their own** password must send `current_password`. An admin can reset
+  another user's password without it.
+- Passwords follow Django's validators (`AUTH_PASSWORD_VALIDATORS`): at least 8 characters,
+  not a common password, not only digits, not too close to the username or email.
+- `role`, `is_staff` and `is_superuser` cannot be changed through the API; `email` and
+  `username` must stay unique.
+- JWTs are stateless: tokens issued before a password change stay valid until they expire
+  (15 min for the access token, 1 h for the refresh token).
 
 ### Webtoons
 
@@ -359,6 +380,7 @@ python manage.py test test.full_create_test.FullCreateTests.test_duplicate_langu
 | File | Covers |
 |---|---|
 | `user_test.py` | Registration, admin creation, user permissions, token verification |
+| `account_test.py` | Own account (`/api/user/me/`), password change and password rules |
 | `webtoon_test.py` | Webtoon visibility and permissions |
 | `release_test.py` | Release permissions |
 | `userrelease_test.py` | Library permissions |
