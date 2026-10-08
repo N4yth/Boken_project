@@ -3,6 +3,8 @@ from django.dispatch import receiver
 
 from api.models.release import Release
 from api.models.user_release import UserRelease
+from api.models.webtoon import Webtoon
+from api.covers import delete_file_after_commit
 from api.ratings import refresh_rating
 
 
@@ -30,3 +32,10 @@ def rating_after_save(sender, instance, **kwargs):
 def rating_after_delete(sender, instance, **kwargs):
     # also called for cascades (user, release or webtoon deleted)
     refresh_rating(webtoon_of_release(instance.release_id_id))
+
+
+@receiver(post_delete, sender=Webtoon)
+def delete_cover_file(sender, instance, **kwargs):
+    # the database row is gone, the file in MEDIA_ROOT/covers/ must go too
+    if instance.cover:
+        delete_file_after_commit(instance.cover.storage, instance.cover.name)

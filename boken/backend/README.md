@@ -18,7 +18,8 @@ and imports webtoons from [AniList](https://anilist.co).
 6. [API reference](#6-api-reference)
 7. [Review workflow](#7-review-workflow)
 8. [AniList import](#8-anilist-import)
-9. [Tests](#9-tests)
+9. [Covers](#9-covers)
+10. [Tests](#10-tests)
 
 ---
 
@@ -78,6 +79,7 @@ and are meant for **local development only**.
 | `DJANGO_CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Allowed origins when `DEBUG` is off (every origin is allowed in debug) |
 | `THROTTLE_LOGIN` | `10/minute` | Login attempts per IP |
 | `THROTTLE_REGISTER` | `20/hour` | Sign ups per IP |
+| `DJANGO_MEDIA_ROOT` | `backend/media` | Folder where the covers are stored |
 
 JWT lifetimes are set in `backend/settings.py` (`SIMPLE_JWT`): 15 minutes for the access token,
 1 hour for the refresh token.
@@ -96,6 +98,9 @@ backend/
 │   ├── serializers.py  # validation and JSON format of every resource
 │   ├── permissions.py  # is_admin(), IsAdmin, IsCreatorOrAdmin, IsReleaseEditor, ...
 │   ├── visibility.py   # what each user is allowed to see (public / own / pending)
+│   ├── covers.py       # cover validation, resize + WebP conversion, AniList download
+│   ├── ratings.py      # community rating (average of the readers)
+│   ├── signals.py      # keeps ratings up to date, deletes cover files
 │   └── external_api.py # AniList client and import of one webtoon
 ├── test/               # API tests, files named *_test.py
 ├── Dockerfile
@@ -111,7 +116,7 @@ Every model inherits from `BaseModel`: a UUID primary key `id`, `create_at` and 
 | Model | Main fields | Notes |
 |---|---|---|
 | **User** | `email` (login), `username`, `role` (`user` / `admin`), `is_staff` | Custom user model (`AUTH_USER_MODEL = 'api.User'`) |
-| **Webtoon** | `title` (unique), `release_date`, `status`, `rating`, `rating_count`, `is_public`, `waiting_review`, `add_by` | Many-to-many with `Author` and `Genre` |
+| **Webtoon** | `title` (unique), `release_date`, `status`, `cover`, `rating`, `rating_count`, `is_public`, `waiting_review`, `add_by` | Many-to-many with `Author` and `Genre` |
 | **Author** | `name` (unique) | Shared between webtoons |
 | **Genre** | `name` (unique) | |
 | **Release** | `webtoon_id`, `language`, `alt_title`, `description`, `total_chapter`, `waiting_review`, `add_by` | One version of a webtoon in one language |
@@ -249,6 +254,7 @@ PATCH /api/user/me/
 | POST | `/api/webtoon/{id}/review/` | admin | `{"approve": true}` makes it public, `false` keeps it private |
 | PATCH | `/api/webtoon/{id}/set_to_public/` | admin | `{"is_public": bool}` |
 | GET | `/api/webtoon/search/` | – | Search, see the filters below |
+| POST / DELETE | `/api/webtoon/{id}/cover/` | creator (private webtoon) or admin | Upload (multipart, field `cover`) or remove the cover, see [Covers](#9-covers) |
 
 `rating` and `rating_count` are read-only (see [Community rating](#community-rating)).
 `authors` is returned as `[{"id", "name"}]`. When writing, it accepts a list of names
@@ -384,7 +390,38 @@ An admin approves (`{"approve": true}`) or rejects (`false`, deletes it) with
 
 ---
 
-## 9. Tests
+## 9. Covers
+
+Webtoons can have a cover image. `cover` is returned in every webtoon (list, detail, library,
+search) as an absolute URL, or `null` when there is none.
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/webtoon/<id>/cover/      -H "Authorization: Bearer <token>" -F "cover=@my_cover.jpg"
+```
+
+**Storage.** Images are files in `MEDIA_ROOT/covers/` (`backend/media/`, ignored by git); the
+database only stores their path. Every image (uploaded or from AniList) is optimised before being
+saved:
+
+- resized to fit in **400 × 600 px** (never upscaled, ratio kept)
+- converted to **WebP** (quality 80), metadata (EXIF, GPS...) removed, first frame of animated images
+- a cover weighs **about 20-50 KB**
+
+**Validation.** JPEG, PNG, WebP or GIF, 5 MB max, 40 megapixels max (protection against
+"decompression bombs"); anything else returns 400.
+
+**Files.** Each upload gets a new random name (no stale browser cache). The previous file is
+deleted when the cover is replaced or removed, and when the webtoon is deleted (after the database
+transaction is committed, so a rollback never leaves the database pointing to a missing file).
+
+**AniList.** The import downloads the `extraLarge` cover (`large` as fallback) and optimises it the
+same way. It is downloaded only once: a re-import keeps the existing file. A failing download does
+not stop the import.
+
+**Serving.** In development Django serves `/media/`. In production (`DJANGO_DEBUG=0`) the web server
+(nginx...) must serve `MEDIA_ROOT` at `/media/`.
+
+## 10. Tests
 
 The tests are in `test/` and use DRF's `APITestCase`. Django creates a temporary test database,
 so your data is not touched. The files are named `*_test.py`, so the pattern has to be given:
@@ -419,4 +456,5 @@ python manage.py test test.full_create_test.FullCreateTests.test_duplicate_langu
 | `admin_dashboard_test.py` | Admin dashboard, AniList import status |
 | `checkup_test.py` | Password update, privacy, creator rules, duplicates, query count, AniList retries |
 | `rating_test.py` | Community rating: average, vote count, refresh on every change |
+| `cover_test.py` | Cover optimisation, validation, file lifecycle, permissions, AniList download |
 | `security_test.py` | Admin creation, login / sign up limits, logout and session revocation, public data rules, value ranges |

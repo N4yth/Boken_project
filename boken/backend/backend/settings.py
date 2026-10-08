@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import mimetypes
 from datetime import timedelta
 import os
 
@@ -150,6 +151,17 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Uploaded files (webtoon covers, see api/covers.py). Served by Django in debug only:
+# in production the web server (nginx...) must serve MEDIA_ROOT at MEDIA_URL.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = Path(os.getenv("DJANGO_MEDIA_ROOT", BASE_DIR / 'media'))
+
+# slim Docker images have no /etc/mime.types: without this .webp is served as application/octet-stream
+mimetypes.add_type("image/webp", ".webp")
+
+# Larger uploads are written to a temporary file instead of memory
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

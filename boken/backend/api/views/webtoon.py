@@ -14,6 +14,8 @@ from api.models.genre import Genre
 from django.db.models import Exists, OuterRef, Q
 from rest_framework import generics
 from django.db import transaction
+from rest_framework.parsers import FormParser, MultiPartParser
+from api.covers import MAX_UPLOAD_BYTES, InvalidCover, remove_cover, set_cover
 
 def with_related(queryset):
     """Load genres, authors, releases and creator in a few queries instead of a few per webtoon."""
@@ -29,7 +31,7 @@ class WebtoonViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
-        elif self.action in ['update', 'destroy', 'partial_update', 'create']:
+        elif self.action in ['update', 'destroy', 'partial_update', 'create', 'cover']:
             return [IsAuthenticated(), IsCreatorOrAdmin()]
         elif self.action in ['set_to_public', 'check', 'review']:
             return [IsAuthenticated(), IsAdmin()]
@@ -59,6 +61,29 @@ class WebtoonViewSet(viewsets.ModelViewSet):
             if "is_public" in self.request.data:
                 raise PermissionDenied("Only an admin can change the visibility of a webtoon.")
         serializer.save()
+
+    @action(detail=True, methods=['post', 'delete'], parser_classes=[MultiPartParser, FormParser])
+    def cover(self, request, pk=None):
+        """
+        POST (multipart, field "cover"): upload the cover, it is resized and converted to WebP.
+        DELETE: remove it. Same rights as editing the webtoon.
+        """
+        webtoon = self.get_object()
+        if webtoon.is_public and not is_admin(request.user):
+            raise PermissionDenied("Public webtoons can only be edited by an admin.")
+        if request.method == 'DELETE':
+            remove_cover(webtoon)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        upload = request.FILES.get('cover')
+        if upload is None:
+            return Response({"cover": ["No file was sent (multipart field \"cover\")."]}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.size > MAX_UPLOAD_BYTES:
+            return Response({"cover": ["Image too large (max 5 MB)."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            set_cover(webtoon, upload.read())
+        except InvalidCover as e:
+            return Response({"cover": [str(e)]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(webtoon).data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
         # deleting a public webtoon also deletes the library entries of every reader

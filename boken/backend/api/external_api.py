@@ -6,6 +6,7 @@ from api.models.release import Release
 from api.models.genre import Genre
 from api.models.author import Author
 from django.db import transaction
+from api.covers import InvalidCover, download_image, set_cover
 
 ANILIST_URL = "https://graphql.anilist.co"
 MAX_ATTEMPTS = 3
@@ -42,7 +43,7 @@ def fetch_page(page, per_page=50):
           countryOfOrigin
           chapters
           staff { edges { role node { name { full } } } }
-          coverImage { large }
+          coverImage { extraLarge large }
         }
       }
     }
@@ -72,9 +73,20 @@ def map_status(status_str):
     }
     return mapping.get(status_str, "in progress")
 
-@transaction.atomic
 def save_webtoon(entry, added_by=None):
     title = entry["title"].get("english") or entry["title"].get("romaji") or "Unknown"
+    # covers are downloaded once: a re-import keeps the existing file
+    existing = Webtoon.objects.filter(title=title).first()
+    cover = None
+    if not (existing and existing.cover):
+        # extraLarge (~460px wide) is resized to 400x600, large (~230px) is the fallback
+        images = entry.get("coverImage") or {}
+        cover = download_image(images.get("extraLarge") or images.get("large"))
+    with transaction.atomic():
+        return _save_webtoon(entry, title, cover, added_by)
+
+
+def _save_webtoon(entry, title, cover, added_by):
     authors = get_authors(entry) or ["Unknown"]
     release_year = entry.get("startDate", {}).get("year") or 2000
     status = map_status(entry.get("status"))
@@ -109,6 +121,12 @@ def save_webtoon(entry, added_by=None):
             "total_chapter": entry.get("chapters") or 0,
         }
     )
+
+    if cover:
+        try:
+            set_cover(webtoon, cover)
+        except InvalidCover:
+            pass  # a broken image must not stop the import
     return created
 
 def get_authors(entry):

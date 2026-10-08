@@ -16,6 +16,14 @@ def request_user(serializer):
     return getattr(request, 'user', None)
 
 
+def cover_url(serializer, webtoon):
+    if not webtoon.cover:
+        return None
+    request = serializer.context.get('request')
+    url = webtoon.cover.url
+    return request.build_absolute_uri(url) if request else url
+
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -124,6 +132,7 @@ class GenreSerializer(serializers.ModelSerializer):
 class WebtoonSerializer(serializers.ModelSerializer):
     add_by = PublicUserSerializer(read_only=True)
     authors = AuthorNamesField(required=False)
+    cover = serializers.SerializerMethodField()
     genres = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Genre.objects.all(),
@@ -132,10 +141,13 @@ class WebtoonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Webtoon
-        fields = ['id', 'genres', 'title', 'authors', 'status', 'is_public', 'rating', 'rating_count', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
+        fields = ['id', 'genres', 'title', 'authors', 'cover', 'status', 'is_public', 'rating', 'rating_count', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
         # rating is the average of the readers' ratings, computed by the API
         read_only_fields = ['id', 'rating', 'rating_count', 'add_by', 'create_at', 'release_date', 'update_at']
     
+    def get_cover(self, obj):
+        return cover_url(self, obj)
+
     def to_representation(self, instance):
         """Remplace la liste d’IDs des genres par leurs données complètes"""
         rep = super().to_representation(instance)
@@ -173,12 +185,16 @@ class UserReleaseSerializer(serializers.ModelSerializer):
 class WebtoonSearchSerializer(serializers.ModelSerializer):
     releases = serializers.SerializerMethodField()
     authors = AuthorNamesField(read_only=True)
+    cover = serializers.SerializerMethodField()
     addable = serializers.SerializerMethodField()
     
     class Meta:
         model = Webtoon
-        fields = ['id', 'title', 'authors', 'rating', 'rating_count', 'releases', 'addable']
+        fields = ['id', 'title', 'authors', 'cover', 'rating', 'rating_count', 'releases', 'addable']
     
+    def get_cover(self, obj):
+        return cover_url(self, obj)
+
     def get_releases(self, obj):
         return ReleaseSerializer(visible_releases(obj, request_user(self)), many=True).data
 

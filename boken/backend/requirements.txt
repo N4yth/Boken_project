@@ -5,3 +5,4 @@ django-cors-headers>=4.4.0
 django-filter>=24.2
 psycopg2-binary>=2.9
 requests>=2.31.0
+Pillow>=11.0
