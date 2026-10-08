@@ -1,495 +1,332 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { Search, ChevronDown, ChevronUp, X, Filter } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { verifyToken, useAuth, refreshToken } from "@/utils/userAuth";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Check, SlidersHorizontal, X } from "lucide-react";
 import WebtoonCard from "@/components/Webtoon_card";
-import { Author, authorNames } from "@/utils/authors";
+import { Button, Container, EmptyState, PageHeader, SearchInput, ShelfSkeleton } from "@/components/ui";
+import { useAuth } from "@/utils/userAuth";
+import { api } from "@/lib/api";
+import { WEBTOON_STATUS } from "@/lib/format";
+import { useAddToLibrary, useOpenWebtoon, usePaged } from "@/lib/hooks";
+import type { Genre, Webtoon } from "@/lib/types";
 
-type Genre = {
-  id: string;
-  name: string;
+const EMPTY_FILTERS = {
+  title: "",
+  author: "",
+  status: "",
+  minChapters: "",
+  maxChapters: "",
+  minRating: "",
+  maxRating: "",
 };
 
-type Release = {
-  id: string;
-  total_chapter: number;
-};
-
-type Webtoon = {
-  id: string;
-  title: string;
-  authors: Author[];
-  rating: number;
-  releases: Release[];
-  addable: boolean;
-};
-
-type UserReleaseData = {
-  release_id: string;
-  chapter_read: number;
-  personal_total_chapter: number;
-  note: string;
-  rating: number;
-  reading_status: string;
-};
+type Filters = typeof EMPTY_FILTERS;
 
 export default function AdvancedSearch() {
-  const [genres, setGenres] = useState<Genre[]>([]);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [webtoonTitle, setWebtoonTitle] = useState("");
-  const [authorName, setAuthorName] = useState("");
-  const [minChapters, setMinChapters] = useState("");
-  const [maxChapters, setMaxChapters] = useState("");
-  const [minRating, setMinRating] = useState("");
-  const [maxRating, setMaxRating] = useState("");
-  const [status, setStatus] = useState("");
-  const router = useRouter();
-  const [searchResults, setSearchResults] = useState<Webtoon[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [genresLoading, setGenresLoading] = useState(true);
-  const [showGenres, setShowGenres] = useState(false);
-  const [showFilters, setShowFilters] = useState(true);
-  const [hasSearched, setHasSearched] = useState(false);
-  const { isLogged, token } = useAuth();
-  const [favoriteLoading, setFavoriteLoading] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(10);
+  const [genres, setGenres] = useState<Genre[]>([]);
+  const [results, setResults] = useState<Webtoon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const { isLogged, mounted } = useAuth();
+  const openWebtoon = useOpenWebtoon();
+
+  const markAdded = useCallback((id: string) => {
+    setResults((prev) => prev.map((w) => (w.id === id ? { ...w, addable: false } : w)));
+  }, []);
+  const { add, pending } = useAddToLibrary(markAdded);
 
   useEffect(() => {
-    if (isLogged) {
-      const checkLogin = async () => {
-        const valid = await verifyToken(token);
-        if (!valid) {
-          await refreshToken();
-        }
-      };
-      checkLogin();
-    }
-  }, [isLogged, token]);
-
-  // Fetch genres on mount
-  useEffect(() => {
-    const fetchGenres = async () => {
-      try {
-        const response = await fetch("http://127.0.0.1:8000/api/genre/");
-        if (response.ok) {
-          const data = await response.json();
-          setGenres(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch genres:", err);
-      } finally {
-        setGenresLoading(false);
-      }
-    };
-    fetchGenres();
+    api<Genre[]>("/api/genre/", { auth: false })
+      .then(setGenres)
+      .catch((err) => console.error("Failed to fetch genres:", err));
   }, []);
 
-  // Toggle genre selection
-  const toggleGenre = (genreId: string) => {
-    setSelectedGenres(prev =>
-      prev.includes(genreId)
-        ? prev.filter(id => id !== genreId)
-        : [...prev, genreId]
-    );
-  };
+  const params = useMemo(() => {
+    const p = new URLSearchParams();
+    if (filters.title.trim()) p.append("title", filters.title.trim());
+    if (filters.author.trim()) p.append("author", filters.author.trim());
+    if (filters.minChapters) p.append("min_chapters", filters.minChapters);
+    if (filters.maxChapters) p.append("max_chapters", filters.maxChapters);
+    if (filters.minRating) p.append("min_rating", filters.minRating);
+    if (filters.maxRating) p.append("max_rating", filters.maxRating);
+    if (filters.status) p.append("status", filters.status);
+    selectedGenres.forEach((id) => p.append("genres", id));
+    return p.toString();
+  }, [filters, selectedGenres]);
 
-  // Clear all filters
-  const clearFilters = () => {
-    setSelectedGenres([]);
-    setWebtoonTitle("");
-    setAuthorName("");
-    setMinChapters("");
-    setMaxChapters("");
-    setMinRating("");
-    setMaxRating("");
-    setStatus("");
-    setSearchResults([]);
-    setHasSearched(false);
-  };
-
-  const handleFavorite = useCallback(async (webtoonId: string, releaseId: string) => {
-    if (!isLogged || !token) {
-      alert("Please login to add favorites");
-      return;
-    }
-
-    setFavoriteLoading(releaseId);
-
-    try {
-      const requestData: UserReleaseData = {
-        release_id: releaseId,
-        personal_total_chapter: 0,
-        chapter_read: 0,
-        note: "",
-        rating: 0.0,
-        reading_status: "to read"
-      };
-
-      const creation_response = await fetch("http://127.0.0.1:8000/api/usereleases/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      if (!creation_response.ok) {
-        throw new Error(`HTTP error! status: ${creation_response.status}`);
-      }
-
-      setSearchResults(prevResults =>
-        prevResults.map(wt =>
-          wt.id === webtoonId ? { ...wt, addable: false } : wt
-        )
-      );
-
-      alert("Added to your reading list!");
-    } catch (err) {
-      console.error("Failed to add favorite:", err);
-      alert("Failed to add to reading list. Please try again.");
-    } finally {
-      setFavoriteLoading(null);
-    }
-  }, [isLogged, token]);
-
-  const handleWebtoonClick = useCallback((webtoonId: string) => {
-    document.cookie = `webtoon=${webtoonId}; path=/; max-age=900; sameSite=strict;`;
-    router.push("/display_webtoon");
-  }, [router]);
-
-  // Handle search
-  const handleSearch = async () => {
+  // Results follow the filters as you type
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
     setLoading(true);
-    setHasSearched(true);
-    setShowFilters(false);
+    const timer = setTimeout(() => {
+      api<Webtoon[]>(`/api/webtoon/search/${params ? `?${params}` : ""}`)
+        .then((data) => !cancelled && setResults(data))
+        .catch((err) => {
+          console.error("Search failed:", err);
+          if (!cancelled) setResults([]);
+        })
+        .finally(() => !cancelled && setLoading(false));
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [params, mounted, isLogged]);
 
-    try {
-      const params = new URLSearchParams();
-      if (webtoonTitle) params.append('title', webtoonTitle);
-      if (authorName) params.append('author', authorName);
-      if (minChapters) params.append('min_chapters', minChapters);
-      if (maxChapters) params.append('max_chapters', maxChapters);
-      if (minRating) params.append('min_rating', minRating);
-      if (maxRating) params.append('max_rating', maxRating);
-      if (status) params.append('status', status);
-      if (selectedGenres.length > 0) {
-        selectedGenres.forEach(genreId => params.append('genres', genreId));
-      }
+  const set = (key: keyof Filters, value: string) => setFilters((prev) => ({ ...prev, [key]: value }));
 
-      const headers: HeadersInit = {
-        "Content-Type": "application/json",
-      };
+  const toggleGenre = (id: string) =>
+    setSelectedGenres((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]));
 
-      if (token && token !== "" && token !== "undefined") {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(
-        `http://127.0.0.1:8000/api/webtoon/search/?${params.toString()}`,
-        {
-          method: "GET",
-          headers
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setSearchResults(data);
-      } else {
-        setSearchResults([]);
-      }
-    } catch (err) {
-      console.error("Search failed:", err);
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
+  const clearAll = () => {
+    setFilters(EMPTY_FILTERS);
+    setSelectedGenres([]);
   };
 
-  const activeFiltersCount = [
-    webtoonTitle,
-    authorName,
-    minChapters,
-    maxChapters,
-    minRating,
-    maxRating,
-    status,
-    selectedGenres.length > 0
-  ].filter(Boolean).length;
+  const activeCount =
+    Object.entries(filters).filter(([key, value]) => key !== "title" && value).length + (selectedGenres.length > 0 ? 1 : 0);
+  const { visible, sentinel, hasMore } = usePaged(results);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const bottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
-      if (bottom && visibleCount < searchResults.length) {
-        setVisibleCount((prev) => prev + 10);
-      }
-    };
+  const panel = (
+    <div className="space-y-7">
+      <FilterGroup label="Author">
+        <input
+          value={filters.author}
+          onChange={(e) => set("author", e.target.value)}
+          placeholder="Any author"
+          className="field"
+        />
+      </FilterGroup>
 
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [visibleCount, searchResults.length]);
+      <FilterGroup label="Publication">
+        <div className="flex flex-wrap gap-2">
+          {[{ value: "", label: "Any" }, ...WEBTOON_STATUS].map((s) => (
+            <button
+              key={s.value || "any"}
+              type="button"
+              aria-pressed={filters.status === s.value}
+              onClick={() => set("status", s.value)}
+              className={`chip ${filters.status === s.value ? "border-ink bg-ink text-paper" : "bg-sheet hover:border-ink/40"}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </FilterGroup>
 
-  useEffect(() => {
-    setVisibleCount(10);
-  }, [searchResults]);
+      <FilterGroup label="Chapters">
+        <Range
+          min={filters.minChapters}
+          max={filters.maxChapters}
+          onMin={(v) => set("minChapters", v)}
+          onMax={(v) => set("maxChapters", v)}
+        />
+      </FilterGroup>
 
-  const handlefilter = () => {
-    setShowFilters(!showFilters); 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+      <FilterGroup label="Rating">
+        <Range
+          min={filters.minRating}
+          max={filters.maxRating}
+          onMin={(v) => set("minRating", v)}
+          onMax={(v) => set("maxRating", v)}
+          step={0.5}
+          limit={5}
+        />
+      </FilterGroup>
+
+      <FilterGroup label="Genres" aside={selectedGenres.length ? `${selectedGenres.length}` : undefined}>
+        <div className="flex flex-wrap gap-2">
+          {genres.map((genre) => {
+            const on = selectedGenres.includes(genre.id);
+            return (
+              <button
+                key={genre.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggleGenre(genre.id)}
+                className={`chip ${on ? "border-ink bg-ink text-paper" : "bg-sheet hover:border-ink/40"}`}
+              >
+                {on && <Check className="h-3.5 w-3.5" strokeWidth={2.5} />}
+                {genre.name}
+              </button>
+            );
+          })}
+          {genres.length === 0 && <p className="text-sm text-muted">No genres yet</p>}
+        </div>
+      </FilterGroup>
+
+      {activeCount > 0 && (
+        <button
+          type="button"
+          onClick={clearAll}
+          className="text-sm font-semibold underline decoration-seal decoration-2 underline-offset-4"
+        >
+          Clear all filters
+        </button>
+      )}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Header - Mobile optimized */}
-      <header className="bg-white px-4 py-3 shadow-sm sticky top-0 z-10">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-indigo-600">
-              Advanced Search
-            </h1>
+    <Container className="pt-8 sm:pt-12">
+      <PageHeader eyebrow="Filter the whole catalogue" title="Search" />
+
+      <div className="mt-6 flex gap-2">
+        <SearchInput
+          value={filters.title}
+          onChange={(v) => set("title", v)}
+          placeholder="Title"
+          className="flex-1 lg:max-w-xl"
+          aria-label="Search by title"
+        />
+        <Button
+          variant="outline"
+          size="lg"
+          className="lg:hidden"
+          onClick={() => setPanelOpen(true)}
+          icon={<SlidersHorizontal className="h-4 w-4" />}
+          aria-label="Open filters"
+        >
+          {activeCount > 0 ? activeCount : null}
+        </Button>
+      </div>
+
+      <div className="mt-8 grid gap-10 lg:grid-cols-[260px_1fr]">
+        <aside className="hidden lg:block">
+          <div className="sticky top-24">{panel}</div>
+        </aside>
+
+        <section className="min-w-0">
+          <p className="mb-5 font-mono text-xs text-muted" aria-live="polite">
+            {loading ? "Searching" : `${results.length} ${results.length === 1 ? "result" : "results"}`}
+          </p>
+          {loading && results.length === 0 ? (
+            <ShelfSkeleton count={8} />
+          ) : results.length === 0 ? (
+            <EmptyState
+              title="Nothing matches"
+              body="Loosen a filter or two. Genres match any of the ones you pick."
+              action={
+                activeCount > 0 || filters.title ? (
+                  <Button variant="outline" size="sm" onClick={clearAll}>
+                    Clear filters
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <div
+                className={`grid grid-cols-2 gap-x-4 gap-y-9 transition-opacity sm:grid-cols-3 xl:grid-cols-4 ${
+                  loading ? "opacity-50" : ""
+                }`}
+              >
+                {visible.map((webtoon, i) => (
+                  <WebtoonCard
+                    key={webtoon.id}
+                    index={i % 20}
+                    id={webtoon.id}
+                    title={webtoon.title}
+                    authors={webtoon.authors}
+                    rating={webtoon.rating}
+                    totalChapters={webtoon.releases?.[0]?.total_chapter ?? 0}
+                    onClick={openWebtoon}
+                    showFavorite={isLogged}
+                    isAddable={webtoon.addable !== false}
+                    releaseId={webtoon.releases?.[0]?.id}
+                    isFavoriteLoading={pending === webtoon.releases?.[0]?.id}
+                    onFavoriteClick={(id, releaseId) => add(id, releaseId, webtoon.releases?.[0]?.total_chapter ?? 0)}
+                  />
+                ))}
+              </div>
+              {hasMore && <div ref={sentinel} className="h-px" />}
+            </>
+          )}
+        </section>
+      </div>
+
+      {panelOpen && (
+        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Filters">
+          <div className="absolute inset-0 bg-ink/40" onClick={() => setPanelOpen(false)} />
+          <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] animate-rise overflow-y-auto rounded-t-[1.25rem] bg-paper px-5 pb-8 pt-3">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink/15" />
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Filters</h2>
+              <button
+                onClick={() => setPanelOpen(false)}
+                className="grid h-9 w-9 place-items-center rounded-full hover:bg-ink/[0.06]"
+                aria-label="Close filters"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {panel}
+            <Button size="lg" className="mt-8 w-full" onClick={() => setPanelOpen(false)}>
+              Show {results.length} {results.length === 1 ? "result" : "results"}
+            </Button>
           </div>
-          <button
-            onClick={handlefilter}
-            className="flex items-center gap-2 px-3 py-2 bg-indigo-100 text-indigo-600 rounded-lg font-medium hover:bg-indigo-200 transition-colors"
-          >
-            <Filter className="w-5 h-5" />
-            {activeFiltersCount > 0 && (
-              <span className="bg-indigo-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
         </div>
-      </header>
+      )}
+    </Container>
+  );
+}
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-20">
-        {/* Search Form - Collapsible on mobile */}
-        {showFilters && (
-          <div className="bg-white border-b border-gray-200 shadow-sm">
-            <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
-              {/* Title Search */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Webtoon Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter title..."
-                  value={webtoonTitle}
-                  onChange={(e) => setWebtoonTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+function FilterGroup({ label, aside, children }: { label: string; aside?: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2.5 flex items-baseline justify-between text-[13px] font-semibold">
+        {label}
+        {aside && <span className="font-mono text-xs font-normal text-muted">{aside}</span>}
+      </p>
+      {children}
+    </div>
+  );
+}
 
-              {/* Author Search */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Author Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter author name..."
-                  value={authorName}
-                  onChange={(e) => setAuthorName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {/* Genres Selection */}
-              <div>
-                <button
-                  onClick={() => setShowGenres(!showGenres)}
-                  className="w-full flex items-center justify-between text-xs font-semibold text-gray-700 mb-1 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <span>
-                    Genres {selectedGenres.length > 0 && `(${selectedGenres.length})`}
-                  </span>
-                  {showGenres ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-
-                {showGenres && (
-                  <div className="grid grid-cols-2 gap-2 p-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
-                    {genresLoading ? (
-                      <p className="col-span-2 text-center text-gray-500 text-xs">Loading...</p>
-                    ) : (
-                      genres.map((genre) => (
-                        <label
-                          key={genre.id}
-                          className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-50 p-1.5 rounded text-xs"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedGenres.includes(genre.id)}
-                            onChange={() => toggleGenre(genre.id)}
-                            className="w-3.5 h-3.5 text-indigo-600 rounded focus:ring-indigo-500"
-                          />
-                          <span className="text-gray-700">{genre.name}</span>
-                        </label>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Chapters Range */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Chapters
-                </label>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={minChapters}
-                    onChange={(e) => setMinChapters(e.target.value)}
-                    min="0"
-                    max="9999"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="text-gray-400 text-xs">to</span>
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={maxChapters}
-                    onChange={(e) => setMaxChapters(e.target.value)}
-                    min="0"
-                    max="9999"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* Rating Range */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Rating
-                </label>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={minRating}
-                    onChange={(e) => setMinRating(e.target.value)}
-                    min="0"
-                    max="5"
-                    step="0.5"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="text-gray-400 text-xs">to</span>
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={maxRating}
-                    onChange={(e) => setMaxRating(e.target.value)}
-                    min="0"
-                    max="5"
-                    step="0.5"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Status
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">All</option>
-                  <option value="ongoing">Ongoing</option>
-                  <option value="completed">Completed</option>
-                  <option value="hiatus">Hiatus</option>
-                </select>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 pt-2 sticky bottom-0 bg-white pb-2">
-                <button
-                  onClick={clearFilters}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  Clear
-                </button>
-                <button
-                  onClick={handleSearch}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:bg-indigo-400"
-                >
-                  <Search className="w-4 h-4" />
-                  {loading ? "Searching..." : "Search"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Search Results */}
-        {hasSearched && (
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-gray-800">
-                Results ({searchResults.length})
-              </h2>
-              {!showFilters && (
-                <button
-                  onClick={() => setShowFilters(true)}
-                  className="flex items-center gap-1 text-indigo-600 text-sm font-medium"
-                >
-                  <Filter className="w-4 h-4" />
-                  Filters
-                </button>
-              )}
-            </div>
-
-            {loading ? (
-              <div className="text-center text-gray-500 py-10">
-                <div className="animate-pulse text-sm">Searching...</div>
-              </div>
-            ) : searchResults.length === 0 ? (
-              <div className="text-center text-gray-500 py-10">
-                <p className="text-sm">No webtoons found.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {searchResults.slice(0, visibleCount).map((webtoon) => {
-                  const firstRelease = webtoon.releases?.[0];
-                  const isLoadingThis = favoriteLoading === firstRelease?.id;
-
-                  return (
-                    <WebtoonCard
-                      key={webtoon.id}
-                      id={webtoon.id}
-                      title={webtoon.title}
-                      authors={authorNames(webtoon.authors)}
-                      rating={webtoon.rating}
-                      totalChapters={firstRelease?.total_chapter || 0}
-                      onClick={handleWebtoonClick}
-                      showFavorite={isLogged}
-                      isAddable={webtoon.addable}
-                      releaseId={firstRelease?.id}
-                      onFavoriteClick={handleFavorite}
-                    />
-                  );
-                })}
-
-                {visibleCount < searchResults.length && (
-                  <div className="text-center text-gray-400 py-6">
-                    Loading more...
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+function Range({
+  min,
+  max,
+  onMin,
+  onMax,
+  step = 1,
+  limit,
+}: {
+  min: string;
+  max: string;
+  onMin: (v: string) => void;
+  onMax: (v: string) => void;
+  step?: number;
+  limit?: number;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="number"
+        inputMode="decimal"
+        min={0}
+        max={limit}
+        step={step}
+        value={min}
+        onChange={(e) => onMin(e.target.value)}
+        placeholder="Min"
+        aria-label="Minimum"
+        className="field font-mono"
+      />
+      <span className="text-muted">to</span>
+      <input
+        type="number"
+        inputMode="decimal"
+        min={0}
+        max={limit}
+        step={step}
+        value={max}
+        onChange={(e) => onMax(e.target.value)}
+        placeholder="Max"
+        aria-label="Maximum"
+        className="field font-mono"
+      />
     </div>
   );
 }

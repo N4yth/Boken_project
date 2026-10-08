@@ -1,623 +1,387 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { Languages, Edit2, Save, X, Star, Trash } from "lucide-react";
-import { useAuth, getCookie, refreshToken, verifyToken } from "@/utils/userAuth";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import '../../globals.css';
-import { Author, authorNames } from "@/utils/authors";
+import { ArrowLeft, ArrowUpRight, Minus, Plus, Send, Trash2 } from "lucide-react";
+import Cover from "@/components/Cover";
+import StatusPill from "@/components/StatusPill";
+import { Stars } from "@/components/Rating";
+import { Button, Container, EmptyState, Segmented } from "@/components/ui";
+import { useFeedback } from "@/components/feedback";
+import { useAuth } from "@/utils/userAuth";
+import { api, ApiError } from "@/lib/api";
+import { getCookie } from "@/lib/cookies";
+import { READING_STATUS, timeAgo } from "@/lib/format";
+import type { ReadingStatus, UserRelease, Webtoon } from "@/lib/types";
 
-type Release = {
-  id: string;
-  total_chapter: number;
-  alt_title: string;
-  description: string;
+type Draft = Pick<UserRelease, "reading_status" | "chapter_read" | "personal_total_chapter" | "rating" | "note">;
+
+function toDraft(entry: UserRelease): Draft {
+  return {
+    reading_status: entry.reading_status,
+    chapter_read: entry.chapter_read ?? 0,
+    personal_total_chapter: entry.personal_total_chapter ?? 0,
+    rating: entry.rating ?? 0,
+    note: entry.note ?? "",
+  };
 }
 
-type UserReleaseData = {
-  id: string;
-  release_id: string;
-  personal_total_chapter: number;
-  chapter_read: number;
-  note: string;
-  rating: number;
-  reading_status: string;
-  update_at: Date;
-};
-
-type Webtoon = {
-  id: string;
-  title: string;
-  authors: Author[];
-  status: string;
-  rating: number;
-  releases: Release[];
-  genres: Genre[];
-  is_public: boolean;
-  waiting_review: boolean;
-};
-
-type Genre = {
-  name: string;
-};
-
-export default function updateWebtoon() {
-  const [webtoon, setWebtoons] = useState<Webtoon>();
-  const [userelease, setUserRelease] = useState<UserReleaseData>();
-  const [originalUserRelease, setOriginalUserRelease] = useState<UserReleaseData>();
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+export default function UpdateWebtoon() {
+  const [webtoon, setWebtoon] = useState<Webtoon>();
+  const [entry, setEntry] = useState<UserRelease>();
+  const [draft, setDraft] = useState<Draft>();
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
   const router = useRouter();
-  const { isLogged, token, mounted } = useAuth();
-  const [hoverRating, setHoverRating] = useState<number | null>(null);
-
-  const displayRating = hoverRating ?? userelease?.rating ?? 0;
+  const { isLogged, mounted } = useAuth();
+  const { toast, confirm } = useFeedback();
 
   useEffect(() => {
-    const checkLogin = async () => {
-      const valid = await verifyToken(token);
-      if (!valid) {
-        const refresh = await refreshToken();
-        if (!refresh) {
-          router.push('/')
-          return;
-        }
-      }
-    };
-    checkLogin();
-  }, [isLogged, token]);
-
-  // Fetch webtoons
-  useEffect(() => {
-    const fetchWebtoons = async () => {
-      try {
-        if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          }
-        });
-        const userelease = await fetch(`http://127.0.0.1:8000/api/usereleases/with_webtoon/${getCookie('webtoon')}/`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          }
-        });
-
-        if (response.status === 401 || response.status === 403) {
-          router.push("/");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setWebtoons(data);
-        const userelease_data = await userelease.json();
-        setUserRelease(userelease_data);
-        setOriginalUserRelease(userelease_data);
-      } catch (err) {
-        console.error("Failed to fetch webtoons:", err);
-      }
-    };
-
-    fetchWebtoons();
-  }, [router, token]);
-
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
-
-  const handleCancel = () => {
-    setUserRelease(originalUserRelease);
-    setIsEditing(false);
-  };
-
-  const handlePublishRequest = useCallback(async () => {
-    if (confirm("Are you sure to ask for a review ?")) {
-      try {
-        if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/webtoon/${getCookie('webtoon')}/`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            waiting_review: true,
-          })
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        alert("request send")
-        router.push("/library")
-      } catch (err) {
-        alert("Failed to send request")
-        console.error("Failed to denied request:", err);
-      }
+    if (!mounted) return;
+    if (!isLogged) {
+      router.replace("/login");
+      return;
     }
-  }, [router, token]);
-
-  const handleSaveAll = async () => {
-    if (!userelease) return;
-
-    setIsSaving(true);
-    try {
-      const token = getCookie("token");
-      const read = userelease.chapter_read ?? 0;
-      const total = userelease.personal_total_chapter ?? 0;
-
-      if (read > total) {
-        alert("Invalid values: read count cannot exceed total chapters.");
-        setIsSaving(false);
-        return;
-      }
-
-      await fetch(`http://127.0.0.1:8000/api/usereleases/${userelease.id}/`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          reading_status: userelease.reading_status,
-          chapter_read: read,
-          personal_total_chapter: total,
-          rating: userelease.rating,
-          note: userelease.note,
-        }),
+    const id = getCookie("webtoon");
+    if (!id) {
+      router.replace("/library");
+      return;
+    }
+    Promise.all([api<Webtoon>(`/api/webtoon/${id}/`), api<UserRelease>(`/api/usereleases/with_webtoon/${id}/`)])
+      .then(([w, e]) => {
+        setWebtoon(w);
+        setEntry(e);
+        setDraft(toDraft(e));
+      })
+      .catch((err) => {
+        console.error("Failed to load library entry:", err);
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) router.replace("/library");
+        else setFailed(true);
       });
+  }, [mounted, isLogged, router]);
 
-      setOriginalUserRelease(userelease);
-      setIsEditing(false);
-      alert("All changes saved successfully!");
+  const dirty = useMemo(() => {
+    if (!entry || !draft) return false;
+    return JSON.stringify(toDraft(entry)) !== JSON.stringify(draft);
+  }, [entry, draft]);
+
+  const update = useCallback((patch: Partial<Draft>) => {
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
+  const setRead = (value: number) => {
+    if (!draft) return;
+    const read = Math.max(0, Math.min(value, draft.personal_total_chapter));
+    const patch: Partial<Draft> = { chapter_read: read };
+    if (read > 0 && draft.reading_status === "to read") patch.reading_status = "reading";
+    update(patch);
+  };
+
+  const setTotal = (value: number) => {
+    if (!draft) return;
+    const total = Math.max(0, value);
+    update({ personal_total_chapter: total, chapter_read: Math.min(draft.chapter_read, total) });
+  };
+
+  const setStatus = (status: ReadingStatus) => {
+    if (!draft) return;
+    const patch: Partial<Draft> = { reading_status: status };
+    if (status === "to read") patch.chapter_read = 0;
+    if (status === "finish") patch.chapter_read = draft.personal_total_chapter;
+    update(patch);
+  };
+
+  const handleSave = async () => {
+    if (!entry || !draft) return;
+    if (draft.chapter_read > draft.personal_total_chapter) {
+      toast("Chapters read cannot be higher than the total", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const saved = await api<UserRelease>(`/api/usereleases/${entry.id}/`, { method: "PATCH", body: draft });
+      const next = { ...entry, ...draft, ...(saved ?? {}) };
+      setEntry(next);
+      setDraft(toDraft(next));
+      toast("Progress saved", "success");
     } catch (err) {
       console.error("Error saving changes:", err);
-      alert("Failed to save changes.");
+      toast("Saving failed, try again", "error");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
-  const handleRemove = useCallback(async () => {
-    if (confirm("Are you sure to remove this webtoon from your library ? (that will remove all the data that you have write on this webtoon)")) {
-      try {
-        console.log(userelease)
-        if (!mounted) return;
-        const response = await fetch(`http://127.0.0.1:8000/api/usereleases/${userelease?.id}/`, {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        alert("Webtoon remove successfully")
-        router.push("/library")
-        return;
-      } catch (err) {
-        alert("Failed to remove please try again or reload the page")
-        console.error("Failed to denied request:", err);
-      }
+  const handleRemove = async () => {
+    if (!entry) return;
+    const ok = await confirm({
+      title: "Remove from your library?",
+      body: "Your progress, rating and note for this series will be deleted.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/usereleases/${entry.id}/`, { method: "DELETE" });
+      toast("Removed from your library");
+      router.push("/library");
+    } catch (err) {
+      console.error("Failed to remove entry:", err);
+      toast("Could not remove it, reload the page and try again", "error");
     }
-  }, [router, token, userelease, mounted]);
+  };
+
+  const handlePublishRequest = async () => {
+    if (!webtoon) return;
+    const ok = await confirm({
+      title: "Submit for review?",
+      body: "An admin will check the entry. Once approved, everyone on Boken can find it.",
+      confirmLabel: "Submit",
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/webtoon/${webtoon.id}/`, { method: "PATCH", body: { waiting_review: true } });
+      setWebtoon({ ...webtoon, waiting_review: true });
+      toast("Sent for review", "success");
+    } catch (err) {
+      console.error("Failed to send review request:", err);
+      toast("The request could not be sent", "error");
+    }
+  };
+
+  if (failed) {
+    return (
+      <Container className="pt-10">
+        <EmptyState
+          title="This entry could not be loaded"
+          body="Go back to your library and open it again."
+          action={
+            <Link href="/library" className="inline-flex h-10 items-center rounded-full bg-ink px-4 text-sm font-semibold text-paper">
+              Back to library
+            </Link>
+          }
+        />
+      </Container>
+    );
+  }
+
+  if (!webtoon || !draft || !entry) {
+    return (
+      <Container className="pt-14">
+        <div className="animate-pulse space-y-6">
+          <div className="h-28 rounded-panel bg-ink/[0.06]" />
+          <div className="h-64 rounded-panel bg-ink/[0.05]" />
+        </div>
+      </Container>
+    );
+  }
+
+  const release = webtoon.releases?.[0];
+  const total = draft.personal_total_chapter;
+  const progress = total > 0 ? Math.round((draft.chapter_read / total) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col">
-      {/* Main Content */}
-      <main className="flex-1 p-4 pb-24">
-        {webtoon ? (
-          <div className="max-w-4xl mx-auto">
-            {/* Edit/Save Buttons */}
-            <div className="flex items-center justify-end gap-2 px-4 py-1 mb-4">
-              {!isEditing ? (
-                <>
-                  <button
-                    onClick={handleEdit}
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white text-indigo-600 rounded-full hover:bg-indigo-50 transition-all shadow-lg text-sm sm:text-base whitespace-nowrap"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                    <span className="font-semibold">Edit</span>
-                  </button>
-                  <button
-                    onClick={handleRemove}
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white text-red-600 rounded-full hover:bg-red-50 transition-all shadow-lg text-sm sm:text-base whitespace-nowrap"
-                  >
-                    <Trash className="w-4 h-4" />
-                    <span className="font-semibold">Remove</span>
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={handleCancel}
-                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 transition-all text-sm sm:text-base whitespace-nowrap"
-                  >
-                    <X className="w-4 h-4" />
-                    <span className="font-semibold">Cancel</span>
-                  </button>
-                  <button
-                    onClick={handleSaveAll}
-                    disabled={isSaving}
-                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-white text-green-600 rounded-full hover:bg-green-50 transition-all shadow-lg disabled:opacity-50 text-sm sm:text-base whitespace-nowrap"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span className="font-semibold">{isSaving ? "Saving..." : "Save All"}</span>
-                  </button>
-                </>
-              )}
-            </div>
+    <Container className="max-w-4xl pt-6 sm:pt-8">
+      <Link href="/library" className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
+        <ArrowLeft className="h-4 w-4" /> Library
+      </Link>
 
-            {/* Hero Card */}
-            <div className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
-              {/* Header with gradient */}
-              <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-4 sm:p-6 text-white">
-                <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-4">
-                  <div className="flex-1 w-full sm:w-auto">
-                    {/* public or not */}
-                    {webtoon.is_public ? (
-                      <div className="text-sm text-gray-400 italic font-normal text-right">
-                        webtoon is public
-                      </div>
-                    ) : webtoon.waiting_review ? (
-                      <div className="text-sm text-gray-400 italic font-normal text-right">
-                        waiting to be review
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={handlePublishRequest}
-                          className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all text-sm sm:text-base"
-                        >
-                          <span className="font-semibold">ask to publish</span>
-                        </button>
-                      </div>
-                    )}
-                    <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">
-                      {webtoon.title}
-                    </h1>
-                    <p className="text-indigo-100 text-xs sm:text-sm break-words">by {authorNames(webtoon.authors)}</p>
-
-
-                  </div>
-
-
-                </div>
-
-                {/* Status and Ratings Row */}
-                <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 sm:gap-4">
-                  <span
-                    className={`px-3 sm:px-4 py-1.5 text-xs font-bold rounded-full ${webtoon.status === "Ongoing"
-                      ? "bg-green-400 text-green-900"
-                      : "bg-gray-300 text-gray-800"
-                      }`}
-                  >
-                    {webtoon.status}
-                  </span>
-
-                  <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5">
-                    <Star className="w-4 h-4 text-yellow-300 fill-yellow-300" />
-                    <span className="text-xs sm:text-sm font-semibold">Your Rating:</span>
-
-                    <div className="flex items-center gap-0.5">
-                      {[...Array(5)].map((_, i) => {
-                        const fillPercent =
-                          displayRating >= i + 1
-                            ? 100
-                            : displayRating >= i + 0.5
-                              ? 50
-                              : 0;
-
-                        return (
-                          <div
-                            key={i}
-                            className={`relative w-4 h-4 ${isEditing ? "cursor-pointer" : ""}`}
-                            onMouseMove={(e) => {
-                              if (!isEditing) return;
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const x = e.clientX - rect.left;
-                              const newHover =
-                                x < rect.width / 2 ? i + 0.5 : i + 1;
-                              setHoverRating(newHover);
-                            }}
-                            onMouseLeave={() => {
-                              if (isEditing) setHoverRating(null);
-                            }}
-                            onClick={() => {
-                              if (!isEditing) return;
-                              if (hoverRating != null) {
-                                setUserRelease((prev) =>
-                                  prev ? { ...prev, rating: hoverRating } : prev
-                                );
-                              }
-                            }}
-                          >
-                            {/* étoile vide */}
-                            <Star className="absolute top-0 left-0 w-4 h-4 text-white/40 fill-white/40" />
-
-                            {/* étoile remplie */}
-                            <div
-                              className="absolute top-0 left-0 overflow-hidden transition-all"
-                              style={{ width: `${fillPercent}%` }}
-                            >
-                              <Star className="w-4 h-4 text-yellow-300 fill-yellow-300" />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <span className="text-xs sm:text-sm font-bold">
-                      {displayRating}/5
-                    </span>
-                  </div>
-
-                  {/* Community Rating */}
-                  <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5">
-                    <span className="text-xs sm:text-sm font-semibold">Community:</span>
-
-                    <div className="flex items-center gap-0.5">
-                      {[...Array(5)].map((_, i) => {
-                        const rating = webtoon?.rating ?? 0;
-                        const fillPercent =
-                          rating >= i + 1 ? 100 : rating >= i + 0.5 ? 50 : 0;
-
-                        return (
-                          <div key={i} className="relative w-4 h-4">
-                            {/* étoile vide */}
-                            <Star className="absolute top-0 left-0 w-4 h-4 text-white/40 fill-white/40" />
-                            {/* étoile remplie */}
-                            <div
-                              className="absolute top-0 left-0 overflow-hidden"
-                              style={{ width: `${fillPercent}%` }}
-                            >
-                              <Star className="w-4 h-4 text-yellow-300 fill-yellow-300" />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <span className="text-xs sm:text-sm font-bold">
-                      {webtoon?.rating ?? 0}/5
-                    </span>
-                  </div>
-
-                </div>
-
-                {/* Genres */}
-                {webtoon.genres && webtoon.genres.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {webtoon.genres.map((genre: Genre, index: number) => (
-                      <span
-                        key={index}
-                        className="px-2 sm:px-3 py-1 text-xs font-medium bg-white/20 backdrop-blur-sm text-white rounded-full"
-                      >
-                        {genre.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Content Section */}
-              <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                {/* Reading Progress Card */}
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 sm:p-5 border border-indigo-100">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
-                    <h2 className="text-lg sm:text-xl font-bold text-indigo-900">Reading Progress</h2>
-                    {isEditing && (
-                      <span className="text-xs text-indigo-600 font-medium bg-indigo-100 px-3 py-1 rounded-full">
-                        Editing Mode
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Status */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                    {isEditing ? (
-                      <select
-                        value={userelease?.reading_status ?? "to read"}
-                        onChange={(e) => {
-                          const newStatus = e.target.value as "to read" | "reading" | "finish";
-                          if (!userelease) return;
-
-                          let newChapterRead = userelease.chapter_read ?? 0;
-                          const totalChapters = userelease.personal_total_chapter ?? 0;
-
-                          if (newStatus === "to read" && newChapterRead > 0) {
-                            if (!confirm("Changing status to 'to read' will reset your chapters read to 0. Continue?"))
-                              return;
-                            newChapterRead = 0;
-                          } else if (newStatus === "finish" && newChapterRead < totalChapters) {
-                            if (!confirm(`Changing status to 'finish' will set chapters read to ${totalChapters}. Continue?`))
-                              return;
-                            newChapterRead = totalChapters;
-                          }
-
-                          setUserRelease((prev) =>
-                            prev ? { ...prev, reading_status: newStatus, chapter_read: newChapterRead } : prev
-                          );
-                        }}
-                        className="w-full border-2 border-indigo-200 rounded-xl px-4 py-2.5 bg-white focus:border-indigo-500 focus:outline-none transition-colors"
-                      >
-                        <option value="to read">To Read</option>
-                        <option value="reading">Reading</option>
-                        <option value="finish">Finished</option>
-                      </select>
-                    ) : (
-                      <div className="px-4 py-2.5 bg-white rounded-xl border-2 border-indigo-200">
-                        <span className="font-medium text-gray-900 capitalize">
-                          {userelease?.reading_status ?? "to read"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Chapters */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Chapters</label>
-                    {isEditing ? (
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="flex-1">
-                          <label className="block text-xs text-gray-500 mb-1">Read</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={userelease?.chapter_read ?? 0}
-                            onChange={(e) => {
-                              const newRead = parseInt(e.target.value, 10) || 0;
-                              const total = userelease?.personal_total_chapter ?? 0;
-
-                              if (newRead > total) {
-                                alert("You cannot read more chapters than released.");
-                                return;
-                              }
-
-                              setUserRelease((prev) =>
-                                prev ? { ...prev, chapter_read: newRead } : prev
-                              );
-                            }}
-                            className="w-full border-2 border-indigo-200 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-center bg-white focus:border-indigo-500 focus:outline-none text-sm sm:text-base"
-                          />
-                        </div>
-                        <span className="text-xl sm:text-2xl font-bold text-gray-400 mt-5">/</span>
-                        <div className="flex-1">
-                          <label className="block text-xs text-gray-500 mb-1">Total</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={userelease?.personal_total_chapter ?? 0}
-                            onChange={(e) => {
-                              const newTotal = parseInt(e.target.value, 10) || 0;
-                              if (userelease && userelease.chapter_read > newTotal) {
-                                alert("You cannot set total chapters below your read count.");
-                                return;
-                              }
-
-                              setUserRelease((prev) =>
-                                prev ? { ...prev, personal_total_chapter: newTotal } : prev
-                              );
-                            }}
-                            className="w-full border-2 border-indigo-200 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-center bg-white focus:border-indigo-500 focus:outline-none text-sm sm:text-base"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white rounded-xl border-2 border-indigo-200">
-                        <span className="text-xl sm:text-2xl font-bold text-indigo-600">
-                          {userelease?.chapter_read ?? 0}
-                        </span>
-                        <span className="text-gray-400 mx-2">/</span>
-                        <span className="text-lg sm:text-xl font-semibold text-gray-700">
-                          {userelease?.personal_total_chapter ?? 0}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="mt-4">
-                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                      <div
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500 h-3 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${((userelease?.chapter_read ?? 0) / (userelease?.personal_total_chapter ?? 1)) * 100
-                            }%`,
-                        }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 text-right">
-                      {(() => {
-                        const read = userelease?.chapter_read ?? 0;
-                        const total = userelease?.personal_total_chapter ?? 0;
-
-                        if (total <= 0) return "0% Complete"; // évite NaN
-
-                        const percent = Math.round((read / total) * 100);
-                        return `${percent}% Complete`;
-                      })()}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Personal Note */}
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-4 sm:p-5 border border-amber-100">
-                  <h2 className="text-lg sm:text-xl font-bold text-amber-900 mb-3">Personal Note</h2>
-                  {isEditing ? (
-                    <textarea
-                      value={userelease?.note ?? ""}
-                      onChange={(e) =>
-                        setUserRelease((prev) =>
-                          prev ? { ...prev, note: e.target.value } : prev
-                        )
-                      }
-                      placeholder="Write your thoughts about this webtoon..."
-                      rows={4}
-                      className="w-full border-2 border-amber-200 rounded-xl p-3 sm:p-4 text-sm sm:text-base text-gray-800 resize-none focus:border-amber-500 focus:outline-none bg-white"
-                    />
-                  ) : (
-                    <div className="px-3 sm:px-4 py-3 bg-white rounded-xl border-2 border-amber-200 min-h-[100px]">
-                      <p className="text-sm sm:text-base text-gray-700 whitespace-pre-wrap break-words">
-                        {userelease?.note || "No notes yet. Click Edit to add your thoughts!"}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Alternative Title */}
-                {webtoon.releases?.[0]?.alt_title && (
-                  <div>
-                    <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                      <Languages className="w-4 sm:w-5 h-4 sm:h-5 text-indigo-600" />
-                      Also Known As
-                    </h2>
-                    <p className="text-sm sm:text-base text-gray-600 bg-gray-50 rounded-xl px-3 sm:px-4 py-3 border border-gray-200 break-words">
-                      {webtoon.releases[0].alt_title}
-                    </p>
-                  </div>
-                )}
-
-                {/* Description */}
-                {webtoon.releases?.[0]?.description && (
-                  <div>
-                    <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-2">
-                      Description
-                    </h2>
-                    <p className="text-sm sm:text-base text-gray-700 leading-relaxed bg-gray-50 rounded-xl px-3 sm:px-4 py-3 border border-gray-200 break-words">
-                      {webtoon.releases[0].description}
-                    </p>
-                  </div>
-                )}
-
-                {/* Last Update */}
-                <div className="text-xs sm:text-sm text-gray-500 text-center pt-4 border-t border-gray-200">
-                  Last Updated: {userelease?.update_at
-                    ? new Date(userelease.update_at).toLocaleDateString("en-US", {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })
-                    : "No update date"}
-                </div>
-              </div>
-            </div>
+      <header className="flex gap-4 sm:gap-6">
+        <Cover title={webtoon.title} size="sm" className="w-20 shrink-0 sm:w-28" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill status={webtoon.status} />
+            <Visibility webtoon={webtoon} />
           </div>
-        ) : (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
-            <p className="mt-4 text-gray-600 font-medium">Loading webtoon details...</p>
-          </div>
+          <h1 className="display mt-3 break-words text-4xl sm:text-6xl">{webtoon.title}</h1>
+          <p className="mt-1.5 text-sm text-muted">{webtoon.authors}</p>
+        </div>
+      </header>
+
+      <div className="mt-6 flex flex-wrap gap-2">
+        {webtoon.is_public && (
+          <Link
+            href="/display_webtoon"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-sheet px-3.5 text-[13px] font-semibold hover:border-ink/40"
+          >
+            Public page <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
         )}
-      </main>
+        {!webtoon.is_public && !webtoon.waiting_review && (
+          <Button size="sm" variant="outline" icon={<Send className="h-3.5 w-3.5" />} onClick={handlePublishRequest}>
+            Submit for review
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-seal hover:bg-seal/10"
+          icon={<Trash2 className="h-3.5 w-3.5" />}
+          onClick={handleRemove}
+        >
+          Remove
+        </Button>
+      </div>
+
+      <section className="mt-8 overflow-hidden rounded-panel border border-line bg-sheet">
+        <div className="p-5 sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="eyebrow">Chapters read</p>
+              <p className="mt-2 font-mono text-5xl tabular-nums tracking-tight sm:text-6xl">
+                {String(draft.chapter_read).padStart(3, "0")}
+                <span className="text-2xl text-muted sm:text-3xl"> / {String(total).padStart(3, "0")}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setRead(draft.chapter_read - 1)}
+                disabled={draft.chapter_read <= 0}
+                className="grid h-12 w-12 place-items-center rounded-full border border-line transition-colors hover:border-ink/40 disabled:opacity-40"
+                aria-label="One chapter less"
+              >
+                <Minus className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setRead(draft.chapter_read + 1)}
+                disabled={draft.chapter_read >= total}
+                className="grid h-12 w-12 place-items-center rounded-full bg-ink text-paper transition-opacity hover:opacity-90 disabled:opacity-40"
+                aria-label="One chapter more"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <ProgressStrip value={draft.chapter_read} total={total} />
+          <p className="mt-2 flex justify-between font-mono text-xs text-muted">
+            <span>{progress}%</span>
+            <span>{total - draft.chapter_read > 0 ? `${total - draft.chapter_read} to go` : total > 0 ? "All caught up" : ""}</span>
+          </p>
+        </div>
+
+        <div className="grid gap-6 border-t border-line p-5 sm:grid-cols-2 sm:p-7">
+          <div>
+            <p className="mb-2 text-[13px] font-semibold">Status</p>
+            <Segmented
+              label="Reading status"
+              value={draft.reading_status as ReadingStatus}
+              options={READING_STATUS}
+              onChange={setStatus}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-2 block text-[13px] font-semibold">Read</span>
+              <input
+                type="number"
+                min={0}
+                max={total}
+                value={draft.chapter_read}
+                onChange={(e) => setRead(parseInt(e.target.value, 10) || 0)}
+                className="field font-mono"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-[13px] font-semibold">Out so far</span>
+              <input
+                type="number"
+                min={0}
+                value={total}
+                onChange={(e) => setTotal(parseInt(e.target.value, 10) || 0)}
+                className="field font-mono"
+              />
+            </label>
+          </div>
+          <div>
+            <p className="mb-2 text-[13px] font-semibold">Your rating</p>
+            <div className="flex items-center gap-3">
+              <Stars value={draft.rating} onChange={(rating) => update({ rating })} label="Your rating" />
+              <span className="font-mono text-sm text-muted">{draft.rating.toFixed(1)}</span>
+            </div>
+            <p className="mt-2 text-xs text-muted">Community: {Number(webtoon.rating ?? 0).toFixed(1)}</p>
+          </div>
+          <label className="block sm:col-span-2">
+            <span className="mb-2 block text-[13px] font-semibold">Note</span>
+            <textarea
+              value={draft.note}
+              onChange={(e) => update({ note: e.target.value })}
+              rows={4}
+              placeholder="Where you stopped, what you thought, who you would recommend it to"
+              className="field resize-y leading-relaxed"
+            />
+          </label>
+        </div>
+
+        {entry.update_at && (
+          <p className="border-t border-line px-5 py-3 font-mono text-xs text-muted sm:px-7">
+            Last saved {timeAgo(entry.update_at)}
+          </p>
+        )}
+      </section>
+
+      {(release?.alt_title || release?.description) && (
+        <section className="mt-10">
+          <h2 className="eyebrow mb-4">About</h2>
+          {release.alt_title && <p className="mb-2 text-muted">Also known as {release.alt_title}</p>}
+          {release.description && (
+            <p className="max-w-[65ch] whitespace-pre-line text-[16px] leading-[1.7]">{release.description}</p>
+          )}
+        </section>
+      )}
+
+      {dirty && (
+        <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] z-50 px-4 md:bottom-6">
+          <div className="mx-auto flex max-w-md animate-rise items-center justify-between gap-3 rounded-full bg-ink py-2 pl-5 pr-2 text-paper shadow-2xl">
+            <span className="text-sm font-medium">Unsaved changes</span>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setDraft(toDraft(entry))}
+                className="h-9 rounded-full px-4 text-sm font-semibold text-paper/80 hover:text-paper"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="h-9 rounded-full bg-paper px-4 text-sm font-semibold text-ink disabled:opacity-60"
+              >
+                {saving ? "Saving" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Container>
+  );
+}
+
+// One cell per chapter when it fits, otherwise a continuous bar
+function ProgressStrip({ value, total }: { value: number; total: number }) {
+  if (total > 0 && total <= 60) {
+    return (
+      <div className="mt-6 flex gap-[3px]" aria-hidden="true">
+        {Array.from({ length: total }).map((_, i) => (
+          <span key={i} className={`h-3 flex-1 rounded-[2px] ${i < value ? "bg-seal" : "bg-ink/10"}`} />
+        ))}
+      </div>
+    );
+  }
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <div className="mt-6 h-3 overflow-hidden rounded-full bg-ink/10" aria-hidden="true">
+      <div className="h-full rounded-full bg-seal transition-[width] duration-300" style={{ width: `${pct}%` }} />
     </div>
   );
+}
+
+function Visibility({ webtoon }: { webtoon: Webtoon }) {
+  if (webtoon.is_public) return <span className="eyebrow">Public</span>;
+  if (webtoon.waiting_review)
+    return (
+      <span className="inline-flex -rotate-3 items-center rounded border-2 border-ochre px-2 py-0.5 font-display text-[11px] font-extrabold uppercase tracking-wider text-ochre">
+        Pending review
+      </span>
+    );
+  return <span className="eyebrow">Private</span>;
 }
