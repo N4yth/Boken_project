@@ -107,3 +107,33 @@ class CommunityRatingTests(APITestCase):
         }
         save_webtoon(entry)
         self.assertEqual(self.current(), (4.0, 1))
+
+
+class RatingRangeTests(APITestCase):
+    """0 = no rating (cleared), a real rating goes from 0.5 (worst) to 5."""
+
+    def setUp(self):
+        user = User.objects.create_user(email="u@test.com", username="u", password="securepass123")
+        self.webtoon = Webtoon.objects.create(title="W", release_date=date(2020, 1, 1), status="finish", is_public=True)
+        release = Release.objects.create(alt_title="W", description="d", language="ko", webtoon_id=self.webtoon)
+        self.entry = UserRelease.objects.create(release_id=release, user_id=user, reading_status="reading")
+        self.client.force_authenticate(user=user)
+        self.url = f"/api/usereleases/{self.entry.id}/"
+
+    def rate(self, value):
+        return self.client.patch(self.url, {"rating": value}, format="json").status_code
+
+    def test_values_between_0_and_half_a_star_are_refused(self):
+        for value in (0.1, 0.3, 0.49, -0.5, 5.5):
+            self.assertEqual(self.rate(value), status.HTTP_400_BAD_REQUEST, value)
+
+    def test_worst_rating_counts_as_a_vote(self):
+        self.assertEqual(self.rate(0.5), status.HTTP_200_OK)
+        self.webtoon.refresh_from_db()
+        self.assertEqual((self.webtoon.rating, self.webtoon.rating_count), (0.5, 1))
+
+    def test_zero_clears_the_rating(self):
+        self.rate(4)
+        self.assertEqual(self.rate(0), status.HTTP_200_OK)
+        self.webtoon.refresh_from_db()
+        self.assertEqual((self.webtoon.rating, self.webtoon.rating_count), (0.0, 0))

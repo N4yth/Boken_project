@@ -132,8 +132,9 @@ chapters. For example, a webtoon can have 550 chapters in Korean and 400 in Engl
 `Webtoon.rating` is the **average of the readers' ratings** and `Webtoon.rating_count` the number of
 readers who rated. Both are computed by the API (read-only, even for admins):
 
-- a reader rates by setting `rating` (0.5 to 5) on their library entry (`/api/usereleases/{id}/`);
-  `0` means "not rated" and is not counted
+- a reader rates by setting `rating` on their library entry (`/api/usereleases/{id}/`):
+  from `0.5` (worst) to `5`. `0` means "not rated" (entries are created with 0, and sending 0 clears
+  a rating) and is not counted. Values between 0 and 0.5 are refused (400)
 - one vote per reader: someone following the webtoon in several languages counts once, with the
   average of their ratings
 - the values are refreshed automatically when an entry is created, updated or deleted (also when a
