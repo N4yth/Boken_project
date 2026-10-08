@@ -221,8 +221,10 @@ class GlobalAPITests(APITestCase):
         url = f"{self.webtoons_url}{self.public_webtoon.id}/"
         res = self.client.patch(url, {"title": "Renamed by creator"}, format="json")
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        # the rating is the readers' average: a value sent by the creator is ignored
         res = self.client.patch(url, {"rating": 4.8}, format="json")
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(res.data["rating"], 4.8)
 
     def test_webtoon_admin_can_set_public(self):
         """✅ Admin can set webtoon to public"""

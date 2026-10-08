@@ -87,7 +87,6 @@ def save_webtoon(entry, added_by=None):
             "release_date": date(release_year, 1, 1),
             "status": status,
             "is_public": True,
-            "rating": 0.0,
             "waiting_review": False,
             "add_by": added_by,
         }

@@ -111,7 +111,7 @@ Every model inherits from `BaseModel`: a UUID primary key `id`, `create_at` and 
 | Model | Main fields | Notes |
 |---|---|---|
 | **User** | `email` (login), `username`, `role` (`user` / `admin`), `is_staff` | Custom user model (`AUTH_USER_MODEL = 'api.User'`) |
-| **Webtoon** | `title` (unique), `release_date`, `status`, `rating`, `is_public`, `waiting_review`, `add_by` | Many-to-many with `Author` and `Genre` |
+| **Webtoon** | `title` (unique), `release_date`, `status`, `rating`, `rating_count`, `is_public`, `waiting_review`, `add_by` | Many-to-many with `Author` and `Genre` |
 | **Author** | `name` (unique) | Shared between webtoons |
 | **Genre** | `name` (unique) | |
 | **Release** | `webtoon_id`, `language`, `alt_title`, `description`, `total_chapter`, `waiting_review`, `add_by` | One version of a webtoon in one language |
@@ -126,6 +126,19 @@ chapters. For example, a webtoon can have 550 chapters in Korean and 400 in Engl
 - A webtoon can only have **one release per language** (database constraint).
 - A library entry (`UserRelease`) points to a release, so a user follows a webtoon **in a given language**.
   The same release can only be added once to a library.
+
+### Community rating
+
+`Webtoon.rating` is the **average of the readers' ratings** and `Webtoon.rating_count` the number of
+readers who rated. Both are computed by the API (read-only, even for admins):
+
+- a reader rates by setting `rating` (0.5 to 5) on their library entry (`/api/usereleases/{id}/`);
+  `0` means "not rated" and is not counted
+- one vote per reader: someone following the webtoon in several languages counts once, with the
+  average of their ratings
+- the values are refreshed automatically when an entry is created, updated or deleted (also when a
+  user, a release or a webtoon is deleted) — see `api/ratings.py` and `api/signals.py`
+- they are stored on the webtoon, so the `min_rating` / `max_rating` search filters use them
 
 ### Choices
 
@@ -236,6 +249,7 @@ PATCH /api/user/me/
 | PATCH | `/api/webtoon/{id}/set_to_public/` | admin | `{"is_public": bool}` |
 | GET | `/api/webtoon/search/` | – | Search, see the filters below |
 
+`rating` and `rating_count` are read-only (see [Community rating](#community-rating)).
 `authors` is returned as `[{"id", "name"}]`. When writing, it accepts a list of names
 (`["Kim", "Lee"]`) or a comma separated string (`"Kim, Lee"`).
 
@@ -403,4 +417,5 @@ python manage.py test test.full_create_test.FullCreateTests.test_duplicate_langu
 | `full_create_test.py` | Creating a webtoon with several releases |
 | `admin_dashboard_test.py` | Admin dashboard, AniList import status |
 | `checkup_test.py` | Password update, privacy, creator rules, duplicates, query count, AniList retries |
+| `rating_test.py` | Community rating: average, vote count, refresh on every change |
 | `security_test.py` | Admin creation, login / sign up limits, logout and session revocation, public data rules, value ranges |

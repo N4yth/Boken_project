@@ -105,6 +105,8 @@ class PublicDataTests(APITestCase):
         self.client.force_authenticate(user=self.admin)
         res = self.client.patch(f"/api/webtoon/{self.webtoon.id}/", {"title": "Fixed", "rating": 4.5}, format="json")
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        # the rating is the readers' average, even an admin cannot set it
+        self.assertEqual(res.data["rating"], 0)
 
     def test_creator_cannot_edit_or_delete_releases_of_public_webtoon(self):
         self.client.force_authenticate(user=self.creator)
@@ -120,17 +122,17 @@ class PublicDataTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertTrue(res.data["waiting_review"])
 
-    def test_creator_cannot_set_the_community_rating(self):
+    def test_nobody_sets_the_community_rating_by_hand(self):
         self.client.force_authenticate(user=self.creator)
         res = self.client.post("/api/webtoon/", {"title": "Mine", "authors": "Me", "status": "finish", "rating": 5},
                                format="json")
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual((res.data["rating"], res.data["rating_count"]), (0, 0))
         res = self.client.post("/api/webtoon/full_create/", {
-            "title": "Mine", "authors": "Me", "status": "finish", "rating": 5, "reading_status": "reading",
+            "title": "Mine 2", "authors": "Me", "status": "finish", "rating": 5, "reading_status": "reading",
             "releases": [{"language": "ko", "alt_title": "M", "description": "d", "total_chapter": 3}]}, format="json")
         self.assertEqual(res.status_code, status.HTTP_200_OK, res.data)
-        self.assertEqual(Webtoon.objects.get(title="Mine").rating, 0)
-
+        self.assertEqual(Webtoon.objects.get(title="Mine 2").rating, 0)
 
 class ValueRangeTests(APITestCase):
     def setUp(self):

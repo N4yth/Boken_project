@@ -46,11 +46,8 @@ class WebtoonViewSet(viewsets.ModelViewSet):
         return with_related(queryset)
 
     def perform_create(self, serializer):
-        if not is_admin(self.request.user):
-            if "is_public" in self.request.data:
-                raise PermissionDenied("Permission denied you cannot create a public webtoon without admin permission.")
-            if "rating" in self.request.data:
-                raise PermissionDenied("Only an admin can set the community rating.")
+        if "is_public" in self.request.data and not is_admin(self.request.user):
+            raise PermissionDenied("Permission denied you cannot create a public webtoon without admin permission.")
         serializer.save(add_by=self.request.user)
 
     def perform_update(self, serializer):
@@ -61,8 +58,6 @@ class WebtoonViewSet(viewsets.ModelViewSet):
             # a webtoon only becomes public through an admin review
             if "is_public" in self.request.data:
                 raise PermissionDenied("Only an admin can change the visibility of a webtoon.")
-            if "rating" in self.request.data:
-                raise PermissionDenied("Only an admin can set the community rating.")
         serializer.save()
 
     def perform_destroy(self, instance):
@@ -212,8 +207,6 @@ class WebtoonViewSet(viewsets.ModelViewSet):
                     'authors': data.get('authors'),
                     'genres': data.get('genres', []),
                     'status': data.get('status'),
-                    # the community rating is not chosen by the creator
-                    'rating': (data.get('rating') or 0) if is_admin(request.user) else 0,
                     'waiting_review': bool(data.get('waiting_review', False)),
                 }, context={'request': request})
                 webtoon_serializer.is_valid(raise_exception=True)

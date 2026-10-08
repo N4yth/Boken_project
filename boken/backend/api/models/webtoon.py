@@ -17,7 +17,9 @@ class Webtoon(BaseModel):
     release_date = models.DateField(default='2000-01-01', null=False, blank=False)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, null=False, blank=False)
     is_public = models.BooleanField(default=False)
+    # average of the readers' ratings and number of readers who rated (see api/ratings.py)
     rating = models.FloatField(default=0.0, validators=[MinValueValidator(0), MaxValueValidator(5)])
+    rating_count = models.PositiveIntegerField(default=0)
     add_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
