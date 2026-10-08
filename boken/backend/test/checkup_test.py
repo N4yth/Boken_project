@@ -120,7 +120,9 @@ class AnilistRetryTests(APITestCase):
             with self.assertRaises(RuntimeError):
                 external_api.fetch_page(1)
         self.assertEqual(post.call_count, external_api.MAX_ATTEMPTS)
-        self.assertEqual(sleep.call_count, external_api.MAX_ATTEMPTS - 1)
+        # retry pauses only (the other pauses space the requests to respect the rate limit)
+        retry_pauses = [c for c in sleep.call_args_list if c.args == (external_api.RETRY_DELAY,)]
+        self.assertEqual(len(retry_pauses), external_api.MAX_ATTEMPTS - 1)
         self.assertEqual(post.call_args.kwargs["timeout"], 30)
 
     def test_network_error_then_success(self):

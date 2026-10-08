@@ -17,7 +17,7 @@ and imports webtoons from [AniList](https://anilist.co).
 5. [Authentication and roles](#5-authentication-and-roles)
 6. [API reference](#6-api-reference)
 7. [Review workflow](#7-review-workflow)
-8. [AniList import](#8-anilist-import)
+8. [Data import](#8-data-import-anilist-mangaupdates-wikidata)
 9. [Covers](#9-covers)
 10. [Tests](#10-tests)
 
@@ -101,7 +101,8 @@ backend/
 │   ├── covers.py       # cover validation, resize + WebP conversion, AniList download
 │   ├── ratings.py      # community rating (average of the readers)
 │   ├── signals.py      # keeps ratings up to date, deletes cover files
-│   └── external_api.py # AniList client and import of one webtoon
+│   ├── external_api.py # AniList client and import of one webtoon
+│   └── sources/        # mangaupdates.py (chapter counts), wikidata.py (localised titles)
 ├── test/               # API tests, files named *_test.py
 ├── Dockerfile
 └── requirements.txt
@@ -116,10 +117,10 @@ Every model inherits from `BaseModel`: a UUID primary key `id`, `create_at` and 
 | Model | Main fields | Notes |
 |---|---|---|
 | **User** | `email` (login), `username`, `role` (`user` / `admin`), `is_staff` | Custom user model (`AUTH_USER_MODEL = 'api.User'`) |
-| **Webtoon** | `title` (unique), `release_date`, `status`, `cover`, `rating`, `rating_count`, `is_public`, `waiting_review`, `add_by` | Many-to-many with `Author` and `Genre` |
+| **Webtoon** | `title` (unique), `release_date`, `status`, `cover`, `rating`, `rating_count`, `is_public`, `waiting_review`, `add_by`, `anilist_id`, `mangaupdates_id` | Many-to-many with `Author` and `Genre` |
 | **Author** | `name` (unique) | Shared between webtoons |
 | **Genre** | `name` (unique) | |
-| **Release** | `webtoon_id`, `language`, `alt_title`, `description`, `total_chapter`, `waiting_review`, `add_by` | One version of a webtoon in one language |
+| **Release** | `webtoon_id`, `language`, `alt_title`, `description`, `total_chapter`, `platform`, `url`, `waiting_review`, `add_by` | One version of a webtoon in one language; `platform` / `url`: where to read it legally |
 | **UserRelease** | `user_id`, `release_id`, `reading_status`, `chapter_read`, `personal_total_chapter`, `rating`, `note` | An entry of a user's library |
 
 ### One release per language
@@ -340,9 +341,9 @@ Only an admin can change `user_id` or `release_id` of an existing entry.
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | GET | `/admin/dashboard/` | admin | Counts, releases per language, pending webtoons and releases, users, import status |
-| GET | `/admin/create/` | admin | Start the AniList import in the background (409 if one is running) |
-| GET | `/admin/update/` | admin | Status of the AniList import |
-| GET | `/admin/update_all/` | admin | Placeholder, does nothing yet |
+| POST | `/admin/create/` | admin | Import new webtoons in the background, see [Data import](#8-data-import-anilist-mangaupdates-wikidata) |
+| POST | `/admin/update_all/` | admin | Refresh the imported webtoons in the background |
+| GET | `/admin/update/` | admin | Progress of the running / last import job |
 
 ---
 
@@ -369,24 +370,66 @@ An admin approves (`{"approve": true}`) or rejects (`false`, deletes it) with
 
 ---
 
-## 8. AniList import
+## 8. Data import (AniList, MangaUpdates, Wikidata)
 
-`GET /admin/create/` starts a background import of up to 150 new webtoons from AniList's GraphQL API
-(`api/external_api.py`), and `GET /admin/update/` returns its progress:
+The catalogue is filled from three sources (`api/external_api.py`, `api/sources/`):
+
+| Source | Used for | Terms |
+|---|---|---|
+| [AniList](https://anilist.co) GraphQL API | Main source: works, titles, dates, status, genres, authors, covers, **official reading platforms per language** | Free for non-commercial use. Mass collection is only tolerated for **educational projects**, and the API must not be used by **competing list/tracker services** ([terms](https://docs.anilist.co/guide/terms-of-use)). Fine for this school project, a public launch needs AniList's agreement. Rate limit: 30 requests/min at the moment |
+| [MangaUpdates](https://www.mangaupdates.com) API v1 | Chapter count of the **original** release while a series is ongoing (AniList has none) | Free, no key. Must **credit MangaUpdates**, space the requests and cache the results ([acceptable use policy](https://api.mangaupdates.com/)) |
+| [Wikidata](https://www.wikidata.org) SPARQL | **Official titles in each language**, found through the "AniList manga ID" property (P8731) | CC0 (public domain), free for any use |
+
+Not used on purpose: MangaDex and other scanlation sites (unofficial translations, against the
+project's choice of legal data), WEBTOON / Tapas / Kakao (no public API, scraping is forbidden by
+their terms), MyAnimeList (needs an API key, no translation data).
+
+**Credits**: the frontend must show something like "Data from AniList, MangaUpdates and Wikidata".
+
+### What is imported
+
+- **Works**: Korean manhwa and Chinese / Taiwanese manhua (`KR`, `CN`, `TW`), most popular first.
+  Excluded: Japanese manga, novels, adult content, works not released yet.
+- **Webtoon**: title (English, else romaji; `"Title (2020)"` when another work already uses it),
+  full start date, status, genres (AniList's list), authors (story / art staff only, not
+  translators), cover (see [Covers](#9-covers)), `anilist_id` and `mangaupdates_id`.
+- **Original release** (`KR` → `ko`, `CN` / `TW` → `zh`): native title, description (HTML and
+  "(Source: ...)" notes removed), chapter count from AniList, else from MangaUpdates, and the
+  original platform (Naver Webtoon, KakaoPage, Tencent Comics...).
+- **One release per official translation**: AniList lists the official "streaming" platforms of a
+  work with their language. Each one in a language Boken supports (`en`, `fr`, `es`, `ja`, `zh`, `ko`)
+  becomes a release with its `platform` and `url` (where to read it legally) and the Wikidata title
+  in that language. No source gives the chapter count of translations: it is `0` (unknown) until an
+  admin sets it.
+- Running an import again never duplicates: works are matched by `anilist_id` (or by title for
+  older imports). Releases added by users or admins are never overwritten, and a known chapter count
+  is never replaced by "unknown".
+
+### Admin commands
+
+| Method | Route | Body (all optional) | Description |
+|---|---|---|---|
+| POST | `/admin/create/` | `{"count": 150, "countries": ["KR", "CN", "TW"], "enrich": true}` | Import up to `count` (1-500) new works, country by country |
+| POST | `/admin/update_all/` | `{"enrich": true}` | Refresh every imported webtoon: status, chapter counts, new official translations, titles, missing covers. Older imports without `anilist_id` are found by exact title |
+| GET | `/admin/update/` | | Progress of the running or last job |
+
+`enrich: false` skips MangaUpdates and Wikidata (faster, AniList only). The jobs run in the
+background and only one runs at a time (409 otherwise). GET also works on `/admin/create/` and
+`/admin/update_all/`, with the parameters in the query string.
 
 ```json
-{"status": "in progress", "create": 42, "already found": 7, "pourcentage": "28%"}
+{"status": "in progress", "task": "update", "phase": "refreshing", "create": 0, "matched": 137,
+ "updated": 150, "already found": 0, "skipped": 37, "errors": [], "pourcentage": "57%",
+ "total": 299, "started_at": "2026-10-09T08:00:00+00:00", "finished_at": null}
 ```
 
-- Kept: Korean and Chinese works, plus works tagged "Webtoon" or "Full Color".
-  Excluded: Japanese manga, novels and adult content.
-- Each webtoon gets **one release in its original language** (`KR` → `ko`, `CN`/`TW` → `zh`), with the
-  native title and the chapter count given by AniList. AniList gives no chapter count while a series
-  is still releasing, so the count is `0` in that case. Translations are added later as releases.
-- Authors are the staff members with a story or art role (translators and editors are ignored).
-- Running the import again updates the existing webtoons instead of duplicating them.
-- Each AniList request has a 30 s timeout and is tried 3 times. After that the import stops with
-  `"status": "error"` and an `error` message. Only one import can run at a time.
+For an update, `phase` is `matching` (finding older imports by title) then `refreshing`, and
+`pourcentage` is the progress of the current phase. Measured on 299 webtoons: about 12 minutes.
+
+`errors` keeps the last 20 works that could not be saved (the job goes on). If a source is
+unreachable after 3 attempts (30 s timeout, `Retry-After` honoured on 429) the job stops with
+`"status": "error"` and an `error` message. Requests are spaced: 2.1 s for AniList, 1 s for
+MangaUpdates.
 
 ---
 
@@ -453,8 +496,9 @@ python manage.py test test.full_create_test.FullCreateTests.test_duplicate_langu
 | `author_language_test.py` | Authors, one release per language, AniList import mapping |
 | `release_submission_test.py` | Release submissions, review, visibility of pending data |
 | `full_create_test.py` | Creating a webtoon with several releases |
-| `admin_dashboard_test.py` | Admin dashboard, AniList import status |
+| `admin_dashboard_test.py` | Admin dashboard, import job status |
 | `checkup_test.py` | Password update, privacy, creator rules, duplicates, query count, AniList retries |
 | `rating_test.py` | Community rating: average, vote count, refresh on every change |
 | `cover_test.py` | Cover optimisation, validation, file lifecycle, permissions, AniList download |
+| `import_sources_test.py` | Import: data calibration, official translations, AniList / MangaUpdates / Wikidata clients, admin jobs |
 | `security_test.py` | Admin creation, login / sign up limits, logout and session revocation, public data rules, value ranges |

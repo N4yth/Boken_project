@@ -30,4 +30,7 @@ class Webtoon(BaseModel):
     waiting_review = models.BooleanField(default=False)
     # optimised WebP file in MEDIA_ROOT/covers/ (see api/covers.py), only the path is in the database
     cover = models.ImageField(upload_to='covers/', null=True, blank=True)
+    # ids in the external sources of the import (api/external_api.py, api/sources/)
+    anilist_id = models.PositiveIntegerField(null=True, blank=True, unique=True)
+    mangaupdates_id = models.BigIntegerField(null=True, blank=True)
     genres = models.ManyToManyField('Genre', related_name='webtoon', blank=False)

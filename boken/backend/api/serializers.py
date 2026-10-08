@@ -141,9 +141,9 @@ class WebtoonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Webtoon
-        fields = ['id', 'genres', 'title', 'authors', 'cover', 'status', 'is_public', 'rating', 'rating_count', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review']
-        # rating is the average of the readers' ratings, computed by the API
-        read_only_fields = ['id', 'rating', 'rating_count', 'add_by', 'create_at', 'release_date', 'update_at']
+        fields = ['id', 'genres', 'title', 'authors', 'cover', 'status', 'is_public', 'rating', 'rating_count', 'add_by', 'release_date', 'create_at', 'update_at', 'waiting_review', 'anilist_id', 'mangaupdates_id']
+        # rating is the average of the readers' ratings, computed by the API; source ids are set by the import
+        read_only_fields = ['id', 'rating', 'rating_count', 'add_by', 'create_at', 'release_date', 'update_at', 'anilist_id', 'mangaupdates_id']
     
     def get_cover(self, obj):
         return cover_url(self, obj)
@@ -171,7 +171,7 @@ class WebtoonSerializer(serializers.ModelSerializer):
 class ReleaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Release
-        fields = ['id', 'alt_title', 'description', 'language', 'total_chapter', 'webtoon_id', 'waiting_review', 'add_by', 'create_at', 'update_at']
+        fields = ['id', 'alt_title', 'description', 'language', 'total_chapter', 'platform', 'url', 'webtoon_id', 'waiting_review', 'add_by', 'create_at', 'update_at']
         read_only_fields = ['id', 'waiting_review', 'add_by', 'create_at', 'update_at']
 
 class UserReleaseSerializer(serializers.ModelSerializer):

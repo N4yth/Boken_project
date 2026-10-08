@@ -20,6 +20,9 @@ class Release(BaseModel):
     description = models.TextField(null=False, blank=False)
     language = models.CharField(max_length=12, choices=LANGUAGE_CHOICES, default='ko', null=False, blank=False)
     total_chapter = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    # official platform where this language can be read legally (WEBTOON, Tapas...), from the import
+    platform = models.CharField(max_length=100, blank=True, default="")
+    url = models.URLField(max_length=500, blank=True, default="")
     webtoon_id = models.ForeignKey(
         Webtoon,
         on_delete=models.CASCADE,
